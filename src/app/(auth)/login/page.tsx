@@ -13,14 +13,21 @@ export default function LoginPage() {
     e.preventDefault()
     setLoading(true)
     setError('')
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) { setError('Invalid email or password.'); setLoading(false); return }
-    await new Promise(r => setTimeout(r, 1000))
-    const res = await fetch('/api/get-role')
-    const { role } = await res.json()
-    if (role === 'director') window.location.href = '/'
-    else if (role === 'hr') window.location.href = '/'
-    else window.location.href = '/'
+
+    if (data.user && data.session) {
+      const res = await fetch('/api/get-role', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: data.user.id, access_token: data.session.access_token })
+      })
+      const { role } = await res.json()
+      if (role === 'director') window.location.replace('/director/dashboard')
+      else if (role === 'hr') window.location.replace('/hr/dashboard')
+      else window.location.replace('/employee/dashboard')
+    }
     setLoading(false)
   }
 

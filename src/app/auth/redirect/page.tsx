@@ -3,28 +3,39 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 export default function AuthRedirect() {
-  const [msg, setMsg] = useState('Loading...')
+  const [msg, setMsg] = useState('正在登入...')
   const supabase = createClient()
 
   useEffect(() => {
     let tries = 0
     const check = async () => {
       tries++
-      setMsg(`Loading... (${tries})`)
       const { data: { session } } = await supabase.auth.getSession()
+      
       if (!session) {
-        if (tries < 10) { setTimeout(check, 500); return }
+        if (tries < 15) { setTimeout(check, 600); return }
         window.location.href = '/login'
         return
       }
-      const { data } = await supabase.from('profiles').select('role').eq('id', session.user.id).single()
-      const role = data?.role
+
+      // 直接从 profiles 表读 role
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .maybeSingle()
+
+      const role = profile?.role
       setMsg('Role: ' + role)
+
       if (role === 'director') window.location.href = '/director/dashboard'
       else if (role === 'hr') window.location.href = '/hr/dashboard'
+      else if (role === 'supervisor') window.location.href = '/supervisor/dashboard'
       else window.location.href = '/employee/dashboard'
     }
-    check()
+    
+    // 等 800ms 再开始，给 Supabase 时间写 cookie
+    setTimeout(check, 800)
   }, [])
 
   return (
