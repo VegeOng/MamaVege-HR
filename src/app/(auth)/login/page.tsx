@@ -32,10 +32,10 @@ export default function LoginPage() {
 
       const role = profile?.role
 
-      if (role === 'director') window.location.replace('/director/dashboard')
-      else if (role === 'hr') window.location.replace('/hr/dashboard')
-      else if (role === 'supervisor') window.location.replace('/supervisor/dashboard')
-      else window.location.replace('/employee/dashboard')
+      if (role === 'director') window.location.replace('/auth/redirect')
+      else if (role === 'hr') window.location.replace('/auth/redirect')
+      else if (role === 'supervisor') window.location.replace('/auth/redirect')
+      else window.location.replace('/auth/redirect')
     }
 
     setLoading(false)
