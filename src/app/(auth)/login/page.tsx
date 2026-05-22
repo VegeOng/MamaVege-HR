@@ -7,45 +7,47 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const supabase = createClient()
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
 
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    const supabase = createClient()
+    const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password })
 
-    if (error) {
+    if (signInError) {
       setError('Invalid email or password.')
       setLoading(false)
       return
     }
 
     if (data.user) {
-      // 直接从 profiles 表读 role，不经过 API
       const { data: profile } = await supabase
         .from('profiles')
         .select('role')
         .eq('id', data.user.id)
-        .maybeSingle()
+        .single()
 
+      console.log('Profile:', profile)
       const role = profile?.role
 
-      if (role === 'director') window.location.replace('/auth/redirect')
-      else if (role === 'hr') window.location.replace('/auth/redirect')
-      else if (role === 'supervisor') window.location.replace('/auth/redirect')
-      else window.location.replace('/auth/redirect')
+      if (role === 'director') window.location.href = '/director/dashboard'
+      else if (role === 'hr') window.location.href = '/hr/dashboard'
+      else if (role === 'supervisor') window.location.href = '/supervisor/dashboard'
+      else if (role === 'employee') window.location.href = '/employee/dashboard'
+      else {
+        setError('Role not found. Please contact admin. Role: ' + JSON.stringify(profile))
+        setLoading(false)
+      }
     }
-
-    setLoading(false)
   }
 
   return (
     <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#1B4332'}}>
       <div style={{background:'white',padding:'40px',borderRadius:'16px',width:'100%',maxWidth:'400px',margin:'0 16px',boxShadow:'0 25px 60px rgba(0,0,0,0.3)'}}>
         <div style={{textAlign:'center',marginBottom:'28px'}}>
-          <div style={{width:'60px',height:'60px',borderRadius:'18px',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 14px',fontSize:'30px'}}>🌿</div>
+          <div style={{fontSize:'30px',marginBottom:'8px'}}>🌿</div>
           <h1 style={{fontSize:'26px',fontWeight:'700',color:'#1B4332',margin:'0 0 4px'}}>MamaVege HR</h1>
           <p style={{color:'#6B7280',margin:0,fontSize:'13px'}}>HR Management System</p>
         </div>
