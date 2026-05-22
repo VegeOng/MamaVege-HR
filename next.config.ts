@@ -6,6 +6,11 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: '*.supabase.co' },
     ],
   },
+  experimental: {
+    turbo: {
+      rules: {},
+    },
+  },
 }
 
 export default nextConfig
