@@ -13,17 +13,9 @@ export default function LoginPage() {
     e.preventDefault()
     setLoading(true)
     setError('')
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) { setError('Invalid email or password.'); setLoading(false); return }
-    if (data.user) {
-      await new Promise(r => setTimeout(r, 800))
-      const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).maybeSingle()
-      const role = profile?.role || 'employee'
-      if (role === 'hr') window.location.href = '/hr/dashboard'
-      else if (role === 'director') window.location.href = '/director/dashboard'
-      else window.location.href = '/employee/dashboard'
-    }
-    setLoading(false)
+    window.location.href = '/auth/redirect'
   }
 
   return (
