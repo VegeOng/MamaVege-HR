@@ -18,9 +18,9 @@ export default function LoginPage() {
     await new Promise(r => setTimeout(r, 1000))
     const res = await fetch('/api/get-role')
     const { role } = await res.json()
-    if (role === 'director') window.location.replace('/director/dashboard')
-    else if (role === 'hr') window.location.replace('/hr/dashboard')
-    else window.location.replace('/employee/dashboard')
+    if (role === 'director') window.location.href = '/'
+    else if (role === 'hr') window.location.href = '/'
+    else window.location.href = '/'
     setLoading(false)
   }
 
