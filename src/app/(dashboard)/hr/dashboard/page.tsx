@@ -1,114 +1,88 @@
-import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
-import { Users, Clock, Calendar, DollarSign, AlertCircle, CheckCircle, TrendingUp } from 'lucide-react'
-import { formatCurrency } from '@/lib/utils'
+'use client'
+import { useEffect, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 
-export default async function HRDashboard() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+export default function HRDashboard() {
+  const [stats, setStats] = useState({ employees: 0, present: 0, late: 0, leaves: 0, claims: 0, ot: 0 })
+  const [payroll, setPayroll] = useState(0)
+  const [pendingLeaves, setPendingLeaves] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const supabase = createClient()
 
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  if (!['hr', 'director'].includes(profile?.role)) redirect('/employee/dashboard')
+  useEffect(() => { loadData() }, [])
 
-  const today = new Date().toISOString().split('T')[0]
-  const currentMonth = new Date().getMonth() + 1
-  const currentYear = new Date().getFullYear()
+  async function loadData() {
+    const today = new Date().toISOString().split('T')[0]
+    const month = today.slice(0, 7)
 
-  const [
-    { count: totalEmployees },
-    { count: activeToday },
-    { count: lateToday },
-    { count: pendingLeaves },
-    { count: pendingClaims },
-    { count: pendingOT },
-    { data: recentLeaves },
-    { data: payrollSummary },
-  ] = await Promise.all([
-    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_active', true).neq('role', 'director'),
-    supabase.from('attendance').select('*', { count: 'exact', head: true }).eq('date', today).eq('status', 'present'),
-    supabase.from('attendance').select('*', { count: 'exact', head: true }).eq('date', today).eq('status', 'late'),
-    supabase.from('leave_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-    supabase.from('claims').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-    supabase.from('ot_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-    supabase.from('leave_requests').select('*, employee:profiles(full_name, department), leave_type:leave_types(name)').eq('status', 'pending').order('applied_at', { ascending: false }).limit(5),
-    supabase.from('payroll').select('net_salary').eq('month', currentMonth).eq('year', currentYear).eq('status', 'paid'),
-  ])
+    const [emp, present, late, leaves, claims, ot, payrollData, leaveList] = await Promise.all([
+      supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_active', true).neq('role', 'director'),
+      supabase.from('attendance').select('*', { count: 'exact', head: true }).eq('date', today).eq('status', 'present'),
+      supabase.from('attendance').select('*', { count: 'exact', head: true }).eq('date', today).eq('status', 'late'),
+      supabase.from('leave_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+      supabase.from('claims').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+      supabase.from('ot_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+      supabase.from('profiles').select('basic_salary').eq('is_active', true).neq('role', 'director'),
+      supabase.from('leave_requests').select('*, profiles(full_name, employee_id)').eq('status', 'pending').limit(5),
+    ])
 
-  const totalPayroll = payrollSummary?.reduce((sum, p) => sum + (p.net_salary || 0), 0) || 0
+    const total = (payrollData.data || []).reduce((s: number, e: any) => s + (e.basic_salary || 0), 0)
+    setStats({ employees: emp.count || 0, present: present.count || 0, late: late.count || 0, leaves: leaves.count || 0, claims: claims.count || 0, ot: ot.count || 0 })
+    setPayroll(total)
+    setPendingLeaves(leaveList.data || [])
+    setLoading(false)
+  }
 
-  const stats = [
-    { label: 'Total Employees', value: totalEmployees || 0, icon: "👥", color: 'bg-blue-50 text-blue-600', link: '/hr/employees' },
-    { label: 'Present Today', value: activeToday || 0, icon: "✅", color: 'bg-green-50 text-green-600', link: '/hr/attendance' },
-    { label: 'Late Today', value: lateToday || 0, icon: "⏰", color: 'bg-orange-50 text-orange-600', link: '/hr/attendance' },
-    { label: 'Pending Leaves', value: pendingLeaves || 0, icon: "📅", color: 'bg-yellow-50 text-yellow-600', link: '/hr/leave' },
-    { label: 'Pending Claims', value: pendingClaims || 0, icon: "💼", color: 'bg-purple-50 text-purple-600', link: '/hr/claims' },
-    { label: 'Pending OT', value: pendingOT || 0, icon: "📈", color: 'bg-red-50 text-red-600', link: '/hr/ot' },
+  const cards = [
+    { label: 'Total Employees', value: stats.employees, icon: '👥', color: '#2563eb', bg: '#eff6ff', link: '/hr/employees' },
+    { label: 'Present Today', value: stats.present, icon: '✅', color: '#16a34a', bg: '#f0fdf4', link: '/hr/attendance' },
+    { label: 'Late Today', value: stats.late, icon: '⏰', color: '#d97706', bg: '#fffbeb', link: '/hr/attendance' },
+    { label: 'Pending Leaves', value: stats.leaves, icon: '🌴', color: '#ca8a04', bg: '#fefce8', link: '/hr/leave' },
+    { label: 'Pending Claims', value: stats.claims, icon: '💼', color: '#7c3aed', bg: '#f5f3ff', link: '/hr/claims' },
+    { label: 'Pending OT', value: stats.ot, icon: '📈', color: '#dc2626', bg: '#fef2f2', link: '/hr/ot' },
   ]
 
+  const today = new Date().toLocaleDateString('en-MY', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">HR Dashboard</h1>
-        <p className="text-gray-500 text-sm mt-1">MamaVege HR Management · {new Date().toLocaleDateString('en-MY', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+    <div style={{ padding: '32px', maxWidth: '1200px' }}>
+      <div style={{ marginBottom: '24px' }}>
+        <h1 style={{ fontSize: '28px', fontWeight: '700', color: '#1B4332', margin: '0 0 4px' }}>HR Dashboard</h1>
+        <p style={{ color: '#6B7280', margin: 0, fontSize: '14px' }}>MamaVege HR Management · {today}</p>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-        {stats.map(stat => {
-          const Icon = stat.icon
-          return (
-            <Link key={stat.label} href={stat.link} className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between mb-3">
-                <div className={`w-10 h-10 rounded-xl ${stat.color} flex items-center justify-center`}>
-                  {stat.icon}
-                </div>
-                {stat.value > 0 && stat.label.includes('Pending') && (
-                  <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">{stat.value}</span>
-                )}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
+        {cards.map(c => (
+          <Link key={c.label} href={c.link} style={{ textDecoration: 'none' }}>
+            <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', cursor: 'pointer', transition: 'box-shadow 0.2s' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                <span style={{ fontSize: '13px', color: '#6B7280', fontWeight: '500' }}>{c.label}</span>
+                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: c.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>{c.icon}</div>
               </div>
-              <p className="text-2xl font-bold text-gray-800">{stat.value}</p>
-              <p className="text-sm text-gray-500">{stat.label}</p>
-            </Link>
-          )
-        })}
+              <p style={{ fontSize: '36px', fontWeight: '700', color: c.color, margin: 0 }}>{loading ? '-' : c.value}</p>
+            </div>
+          </Link>
+        ))}
       </div>
 
-      {/* Monthly Payroll */}
-      <div className="bg-green-800 text-white rounded-2xl p-6 mb-6">
-        <p className="text-green-300 text-sm mb-1">This Month's Payroll  本月薪资</p>
-        <p className="text-3xl font-bold">{formatCurrency(totalPayroll)}</p>
-        <p className="text-green-300 text-sm mt-1">Total Net Salary Paid · {new Date().toLocaleString('en', { month: 'long', year: 'numeric' })}</p>
-        <Link href="/hr/payroll" className="inline-block mt-3 bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors">
-          Manage Payroll →
-        </Link>
-      </div>
-
-      {/* Pending Leave Requests */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-gray-800">Pending Leave Requests  待审批假期</h3>
-          <Link href="/hr/leave" className="text-sm text-green-600 hover:underline">View all →</Link>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+        <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+          <p style={{ color: '#6B7280', fontSize: '13px', margin: '0 0 8px' }}>This Month Payroll 本月薪资</p>
+          <p style={{ fontSize: '28px', fontWeight: '700', color: '#1B4332', margin: '0 0 4px' }}>RM {payroll.toFixed(2)}</p>
+          <p style={{ color: '#9CA3AF', fontSize: '12px', margin: '0 0 16px' }}>Total Basic Salary · {new Date().toLocaleDateString('en-MY', { month: 'long', year: 'numeric' })}</p>
+          <Link href="/hr/payroll" style={{ fontSize: '13px', color: '#2D6A4F', textDecoration: 'none', fontWeight: '600' }}>Manage Payroll →</Link>
         </div>
-        {!recentLeaves || recentLeaves.length === 0 ? (
-          <p className="text-gray-400 text-sm text-center py-6">✅ No pending leave requests</p>
-        ) : (
-          <div className="space-y-3">
-            {recentLeaves.map((req: any) => (
-              <div key={req.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
-                <div>
-                  <p className="text-sm font-medium text-gray-800">{req.employee?.full_name}</p>
-                  <p className="text-xs text-gray-400">{req.leave_type?.name} · {req.total_hours / 8} day(s) · {req.employee?.department}</p>
-                </div>
-                <Link href="/hr/leave" className="text-xs bg-yellow-100 text-yellow-700 px-3 py-1.5 rounded-full font-medium hover:bg-yellow-200 transition-colors">
-                  Review
-                </Link>
-              </div>
-            ))}
+
+        <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <p style={{ fontWeight: '600', color: '#111827', margin: 0 }}>Pending Leave Requests 待审批假期</p>
+            <Link href="/hr/leave" style={{ fontSize: '12px', color: '#2D6A4F', textDecoration: 'none' }}>View all →</Link>
           </div>
-        )}
-      </div>
-    </div>
-  )
-}
+          {pendingLeaves.length === 0 ? (
+            <p style={{ color: '#9CA3AF', fontSize: '14px', textAlign: 'center', padding: '20px 0' }}>✅ No pending leave requests</p>
+          ) : pendingLeaves.map(l => (
+            <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #F3F4F6' }}>
+              <div>
+                <p style={{ fontSize: '13px', fontWeight: '600', color: '#111827', margin: 0 }}>{l.profiles?.full_name}</p>
+                <p style={{ fontSize:
