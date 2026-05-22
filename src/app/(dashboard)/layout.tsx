@@ -39,7 +39,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const role = profile?.role
   const navItems = role === 'hr' ? [
+    { href: '/] : role === 'hr' ? [
     { href: '/hr/dashboard', label: '📊 Dashboard' },
+    { href: '/hr/employees', label: '👥 Employees' },
+    { href: '/hr/attendance', label: '⏰ Attendance' },
+    { href: '/hr/leave', label: '🌴 Leave' },
+    { href: '/hr/ot', label: '⏱ Overtime' },
+    { href: '/hr/claims', label: '💼 Claims' },
+    { href: '/hr/payroll', label: '💰 Payroll' },
+    { href: '/hr/holidays', label: '📅 Holidays' },
+    { href: '/hr/settings', label: '⚙️ Settings' },
+  ] : role === 'director' ? [hr/dashboard', label: '📊 Dashboard' },
     { href: '/hr/employees', label: '👥 Employees' },
     { href: '/hr/attendance', label: '⏰ Attendance' },
     { href: '/hr/leave', label: '🌴 Leave' },
