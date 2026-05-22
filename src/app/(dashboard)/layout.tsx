@@ -39,8 +39,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const role = profile?.role
   const navItems = role === 'hr' ? [
-    { href: '/] : role === 'hr' ? [
-{ href: '/hr/dashboard', label: '📊 Dashboard' },
+    { href: '/hr/dashboard', label: '📊 Dashboard' },
     { href: '/hr/employees', label: '👥 Employees' },
     { href: '/hr/attendance', label: '⏰ Attendance' },
     { href: '/hr/leave', label: '🌴 Leave' },
@@ -48,11 +47,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { href: '/hr/claims', label: '💼 Claims' },
     { href: '/hr/payroll', label: '💰 Payroll' },
     { href: '/hr/holidays', label: '📅 Holidays' },
-    { href: '/hr/settings', label: '⚙️ Settings' },  ] : role === 'director' ? [hr/dashboard', label: '📊 Dashboard' },
-    { href: '/hr/employees', label: '👥 Employees' },
-    { href: '/hr/attendance', label: '⏰ Attendance' },
-    { href: '/hr/leave', label: '🌴 Leave' },
-    { href: '/hr/payroll', label: '💰 Payroll' },
+    { href: '/hr/settings', label: '⚙️ Settings' },
   ] : role === 'director' ? [
     { href: '/director/dashboard', label: '📊 Dashboard' },
     { href: '/director/suggestions', label: '💬 Suggestions' },
@@ -64,7 +59,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { href: '/employee/dashboard', label: '📊 Dashboard' },
     { href: '/employee/attendance', label: '⏰ Attendance' },
     { href: '/employee/leave', label: '🌴 Leave' },
+    { href: '/employee/ot', label: '⏱ Overtime' },
+    { href: '/employee/claims', label: '💼 Claims' },
     { href: '/employee/payslip', label: '💰 Payslip' },
+    { href: '/employee/documents', label: '📁 Documents' },
+    { href: '/employee/suggestion', label: '💬 Suggestion Box' },
   ]
 
   return (
