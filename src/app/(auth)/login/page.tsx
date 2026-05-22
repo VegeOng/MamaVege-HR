@@ -15,19 +15,29 @@ export default function LoginPage() {
     setError('')
 
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) { setError('Invalid email or password.'); setLoading(false); return }
 
-    if (data.user && data.session) {
-      const res = await fetch('/api/get-role', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: data.user.id, access_token: data.session.access_token })
-      })
-      const { role } = await res.json()
+    if (error) {
+      setError('Invalid email or password.')
+      setLoading(false)
+      return
+    }
+
+    if (data.user) {
+      // 直接从 profiles 表读 role，不经过 API
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', data.user.id)
+        .maybeSingle()
+
+      const role = profile?.role
+
       if (role === 'director') window.location.replace('/director/dashboard')
       else if (role === 'hr') window.location.replace('/hr/dashboard')
+      else if (role === 'supervisor') window.location.replace('/supervisor/dashboard')
       else window.location.replace('/employee/dashboard')
     }
+
     setLoading(false)
   }
 
@@ -35,7 +45,7 @@ export default function LoginPage() {
     <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#1B4332'}}>
       <div style={{background:'white',padding:'40px',borderRadius:'16px',width:'100%',maxWidth:'400px',margin:'0 16px',boxShadow:'0 25px 60px rgba(0,0,0,0.3)'}}>
         <div style={{textAlign:'center',marginBottom:'28px'}}>
-          <div style={{width:'60px',height:'60px',background:'#52B788',borderRadius:'18px',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 14px',fontSize:'30px'}}>🌿</div>
+          <div style={{width:'60px',height:'60px',borderRadius:'18px',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 14px',fontSize:'30px'}}>🌿</div>
           <h1 style={{fontSize:'26px',fontWeight:'700',color:'#1B4332',margin:'0 0 4px'}}>MamaVege HR</h1>
           <p style={{color:'#6B7280',margin:0,fontSize:'13px'}}>HR Management System</p>
         </div>
