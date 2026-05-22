@@ -39,12 +39,12 @@ export default async function HRDashboard() {
   const totalPayroll = payrollSummary?.reduce((sum, p) => sum + (p.net_salary || 0), 0) || 0
 
   const stats = [
-    { label: 'Total Employees', value: totalEmployees || 0, icon: Users, color: 'bg-blue-50 text-blue-600', link: '/hr/employees' },
-    { label: 'Present Today', value: activeToday || 0, icon: CheckCircle, color: 'bg-green-50 text-green-600', link: '/hr/attendance' },
-    { label: 'Late Today', value: lateToday || 0, icon: Clock, color: 'bg-orange-50 text-orange-600', link: '/hr/attendance' },
-    { label: 'Pending Leaves', value: pendingLeaves || 0, icon: Calendar, color: 'bg-yellow-50 text-yellow-600', link: '/hr/leave' },
-    { label: 'Pending Claims', value: pendingClaims || 0, icon: AlertCircle, color: 'bg-purple-50 text-purple-600', link: '/hr/claims' },
-    { label: 'Pending OT', value: pendingOT || 0, icon: TrendingUp, color: 'bg-red-50 text-red-600', link: '/hr/ot' },
+    { label: 'Total Employees', value: totalEmployees || 0, icon: "👥", color: 'bg-blue-50 text-blue-600', link: '/hr/employees' },
+    { label: 'Present Today', value: activeToday || 0, icon: "✅", color: 'bg-green-50 text-green-600', link: '/hr/attendance' },
+    { label: 'Late Today', value: lateToday || 0, icon: "⏰", color: 'bg-orange-50 text-orange-600', link: '/hr/attendance' },
+    { label: 'Pending Leaves', value: pendingLeaves || 0, icon: "📅", color: 'bg-yellow-50 text-yellow-600', link: '/hr/leave' },
+    { label: 'Pending Claims', value: pendingClaims || 0, icon: "💼", color: 'bg-purple-50 text-purple-600', link: '/hr/claims' },
+    { label: 'Pending OT', value: pendingOT || 0, icon: "📈", color: 'bg-red-50 text-red-600', link: '/hr/ot' },
   ]
 
   return (
@@ -62,7 +62,7 @@ export default async function HRDashboard() {
             <Link key={stat.label} href={stat.link} className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between mb-3">
                 <div className={`w-10 h-10 rounded-xl ${stat.color} flex items-center justify-center`}>
-                  <Icon className="w-5 h-5" />
+                  {stat.icon}
                 </div>
                 {stat.value > 0 && stat.label.includes('Pending') && (
                   <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">{stat.value}</span>
