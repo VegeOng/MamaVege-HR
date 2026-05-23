@@ -1,107 +1,108 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, Search, User, Mail, Phone, Edit2, UserX, ChevronRight } from 'lucide-react'
-import { formatDate } from '@/lib/utils'
 import Link from 'next/link'
 
-export default function EmployeesPage() {
+export default function HREmployeesPage() {
   const [employees, setEmployees] = useState<any[]>([])
-  const [filtered, setFiltered] = useState<any[]>([])
-  const [search, setSearch] = useState('')
-  const [deptFilter, setDeptFilter] = useState('all')
-  const [departments, setDepartments] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [dept, setDept] = useState('all')
   const supabase = createClient()
 
   useEffect(() => { loadData() }, [])
 
-  useEffect(() => {
-    let result = employees
-    if (search) result = result.filter(e => e.full_name.toLowerCase().includes(search.toLowerCase()) || e.employee_id.toLowerCase().includes(search.toLowerCase()))
-    if (deptFilter !== 'all') result = result.filter(e => e.department === deptFilter)
-    setFiltered(result)
-  }, [search, deptFilter, employees])
-
   async function loadData() {
-    const [empRes, deptRes] = await Promise.all([
-      supabase.from('profiles').select('*').neq('role', 'director').order('full_name'),
-      supabase.from('departments').select('*').order('name'),
-    ])
-    setEmployees(empRes.data || [])
-    setFiltered(empRes.data || [])
-    setDepartments(deptRes.data || [])
+    setLoading(true)
+    const { data } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('is_active', true)
+      .neq('role', 'director')
+      .order('employee_id')
+    setEmployees(data || [])
     setLoading(false)
   }
 
-  async function toggleActive(id: string, current: boolean) {
-    await supabase.from('profiles').update({ is_active: !current }).eq('id', id)
+  async function handleDeactivate(id: string) {
+    if (!confirm('Deactivate this employee?')) return
+    await supabase.from('profiles').update({ is_active: false }).eq('id', id)
     loadData()
   }
 
+  const depts = ['all', ...Array.from(new Set(employees.map(e => e.department).filter(Boolean)))]
+  const filtered = employees.filter(e => {
+    const matchSearch = !search || e.full_name?.toLowerCase().includes(search.toLowerCase()) || e.employee_id?.toLowerCase().includes(search.toLowerCase())
+    const matchDept = dept === 'all' || e.department === dept
+    return matchSearch && matchDept
+  })
+
+  const roleColor: any = {
+    hr: { background: '#dbeafe', color: '#1d4ed8' },
+    supervisor: { background: '#fef3c7', color: '#d97706' },
+    employee: { background: '#dcfce7', color: '#16a34a' },
+  }
+
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+    <div style={{ padding: '32px', maxWidth: '1200px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Employees  员工管理</h1>
-          <p className="text-gray-500 text-sm mt-1">{employees.filter(e => e.is_active).length} active employees</p>
+          <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#1B4332', margin: '0 0 4px' }}>Employees 员工管理</h1>
+          <p style={{ color: '#6B7280', fontSize: '14px', margin: 0 }}>{filtered.length} active employees</p>
         </div>
-        <Link href="/hr/employees/new" className="flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-4 py-2.5 rounded-xl text-sm font-medium">
-          <Plus className="w-4 h-4" /> Add Employee
+        <Link href="/hr/employees/new" style={{ padding: '10px 20px', background: '#1B4332', color: 'white', borderRadius: '10px', fontSize: '14px', fontWeight: '600', textDecoration: 'none' }}>
+          + Add Employee
         </Link>
       </div>
-
-      {/* Filters */}
-      <div className="flex gap-3 mb-5">
-        <div className="flex-1 relative">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or ID..." className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:outline-none text-sm" />
-        </div>
-        <select value={deptFilter} onChange={e => setDeptFilter(e.target.value)} className="px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:outline-none text-sm">
-          <option value="all">All Departments</option>
-          {departments.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
+      <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
+        <input type="text" placeholder="Search by name or ID..." value={search} onChange={e => setSearch(e.target.value)}
+          style={{ padding: '9px 14px', border: '1.5px solid #E5E7EB', borderRadius: '10px', fontSize: '14px', minWidth: '250px' }} />
+        <select value={dept} onChange={e => setDept(e.target.value)}
+          style={{ padding: '9px 14px', border: '1.5px solid #E5E7EB', borderRadius: '10px', fontSize: '14px' }}>
+          {depts.map(d => <option key={d} value={d}>{d === 'all' ? 'All Departments' : d}</option>)}
         </select>
       </div>
-
-      {/* Employee List */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center text-gray-400">Loading...</div>
-        ) : filtered.length === 0 ? (
-          <div className="p-8 text-center text-gray-400">No employees found</div>
-        ) : (
-          <div className="divide-y divide-gray-50">
-            {filtered.map(emp => (
-              <div key={emp.id} className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                    <span className="text-green-700 font-semibold text-sm">{emp.full_name.charAt(0)}</span>
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium text-gray-800 text-sm">{emp.full_name}</p>
-                      <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">{emp.employee_id}</span>
-                      {!emp.is_active && <span className="text-xs bg-red-100 text-red-500 px-2 py-0.5 rounded-full">Inactive</span>}
+      <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+              {['Employee', 'ID', 'Department', 'Role', 'Shift', 'Email', 'Action'].map(h => (
+                <th key={h} style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#6B7280', textTransform: 'uppercase' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: '#9CA3AF' }}>Loading...</td></tr>
+            ) : filtered.length === 0 ? (
+              <tr><td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: '#9CA3AF' }}>No employees found</td></tr>
+            ) : filtered.map((e, i) => (
+              <tr key={e.id} style={{ borderBottom: '1px solid #F3F4F6', background: i % 2 === 0 ? 'white' : '#FAFAFA' }}>
+                <td style={{ padding: '12px 16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#d1fae5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: '700', color: '#065f46', flexShrink: 0 }}>
+                      {e.full_name?.[0]?.toUpperCase()}
                     </div>
-                    <p className="text-xs text-gray-400">{emp.position} · {emp.department} · Shift {emp.shift}</p>
-                    <p className="text-xs text-gray-400">{emp.email}</p>
+                    <p style={{ fontSize: '13px', fontWeight: '600', color: '#111827', margin: 0 }}>{e.full_name}</p>
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`text-xs px-2 py-1 rounded-full ${emp.role === 'supervisor' ? 'bg-blue-100 text-blue-600' : emp.role === 'hr' ? 'bg-purple-100 text-purple-600' : 'bg-gray-100 text-gray-600'}`}>
-                    {emp.role}
-                  </span>
-                  <Link href={`/hr/employees/${emp.id}`} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                    <Edit2 className="w-4 h-4 text-gray-400" />
-                  </Link>
-                  <button onClick={() => toggleActive(emp.id, emp.is_active)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                    <UserX className={`w-4 h-4 ${emp.is_active ? 'text-red-400' : 'text-green-400'}`} />
-                  </button>
-                </div>
-              </div>
+                </td>
+                <td style={{ padding: '12px 16px', fontSize: '13px', color: '#6B7280' }}>{e.employee_id}</td>
+                <td style={{ padding: '12px 16px', fontSize: '13px', color: '#374151' }}>{e.department || '-'}</td>
+                <td style={{ padding: '12px 16px' }}>
+                  <span style={{ ...(roleColor[e.role] || { background: '#F3F4F6', color: '#374151' }), padding: '3px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: '600', textTransform: 'capitalize' }}>{e.role}</span>
+                </td>
+                <td style={{ padding: '12px 16px', fontSize: '13px', color: '#374151' }}>{e.shift || '-'}</td>
+                <td style={{ padding: '12px 16px', fontSize: '13px', color: '#6B7280' }}>{e.email}</td>
+                <td style={{ padding: '12px 16px' }}>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <Link href={`/hr/employees/${e.id}`} style={{ padding: '4px 10px', background: '#dbeafe', color: '#1d4ed8', borderRadius: '6px', fontSize: '12px', textDecoration: 'none', fontWeight: '500' }}>Edit</Link>
+                    <button onClick={() => handleDeactivate(e.id)} style={{ padding: '4px 10px', background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>Remove</button>
+                  </div>
+                </td>
+              </tr>
             ))}
-          </div>
-        )}
+          </tbody>
+        </table>
       </div>
     </div>
   )

@@ -1,105 +1,91 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { CheckCircle, XCircle, Eye, Calendar } from 'lucide-react'
-import { formatDate, generateWhatsAppLink, getStatusColor } from '@/lib/utils'
 
 export default function HRLeavePage() {
   const [requests, setRequests] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('pending')
-  const [selected, setSelected] = useState<any>(null)
-  const [reviewNote, setReviewNote] = useState('')
-  const [loading, setLoading] = useState(false)
   const supabase = createClient()
 
   useEffect(() => { loadData() }, [filter])
 
   async function loadData() {
-    const query = supabase.from('leave_requests')
-      .select('*, employee:profiles(full_name, department, whatsapp_number), leave_type:leave_types(name, code)')
-      .order('applied_at', { ascending: false })
-    if (filter !== 'all') query.eq('status', filter)
-    const { data } = await query
+    setLoading(true)
+    let q = supabase.from('leave_requests').select('*, profiles(full_name, employee_id, department)').order('created_at', { ascending: false })
+    if (filter !== 'all') q = q.eq('status', filter)
+    const { data } = await q
     setRequests(data || [])
+    setLoading(false)
   }
 
-  async function handleReview(id: string, status: 'approved' | 'rejected') {
-    setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    const req = requests.find(r => r.id === id)
-    await supabase.from('leave_requests').update({ status, reviewed_by: user?.id, reviewed_at: new Date().toISOString(), reviewer_notes: reviewNote }).eq('id', id)
-    if (status === 'approved' && req) {
-      const { data: ent } = await supabase.from('leave_entitlements').select('*').eq('employee_id', req.employee_id).eq('leave_type_id', req.leave_type_id).eq('year', new Date().getFullYear()).single()
-      if (ent) await supabase.from('leave_entitlements').update({ used_hours: ent.used_hours + req.total_hours }).eq('id', ent.id)
-    }
-    if (req) {
-      const msg = `Hi ${req.employee?.full_name}, your ${req.leave_type?.name} request from ${formatDate(req.start_date)} has been ${status.toUpperCase()}. ${reviewNote ? 'Note: ' + reviewNote : ''} - MamaVege HR`
-      window.open(generateWhatsAppLink(req.employee?.whatsapp_number || '60', msg), '_blank')
-    }
-    setSelected(null); setReviewNote(''); setLoading(false); loadData()
+  async function handleAction(id: string, status: string) {
+    await supabase.from('leave_requests').update({ status }).eq('id', id)
+    loadData()
+  }
+
+  const statusStyle: any = {
+    approved: { background: '#dcfce7', color: '#16a34a' },
+    rejected: { background: '#fee2e2', color: '#dc2626' },
+    pending: { background: '#fef3c7', color: '#d97706' },
   }
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Leave Management  假期管理</h1>
-        <p className="text-gray-500 text-sm mt-1">Review and approve leave requests</p>
-      </div>
-      <div className="flex gap-2 mb-5">
-        {['pending','approved','rejected','all'].map(f => (
-          <button key={f} onClick={() => setFilter(f)} className={`px-4 py-2 rounded-xl text-sm font-medium capitalize transition-colors ${filter === f ? 'bg-green-700 text-white' : 'bg-white text-gray-600 border border-gray-200'}`}>{f}</button>
+    <div style={{ padding: '32px', maxWidth: '1200px' }}>
+      <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#1B4332', margin: '0 0 4px' }}>Leave Management 假期管理</h1>
+      <p style={{ color: '#6B7280', fontSize: '14px', margin: '0 0 20px' }}>Review and approve leave requests</p>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
+        {['pending', 'approved', 'rejected', 'all'].map(f => (
+          <button key={f} onClick={() => setFilter(f)} style={{
+            padding: '8px 16px', borderRadius: '12px', fontSize: '13px', fontWeight: '500',
+            border: 'none', cursor: 'pointer', textTransform: 'capitalize',
+            background: filter === f ? '#1B4332' : 'white',
+            color: filter === f ? 'white' : '#6B7280',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+          }}>{f}</button>
         ))}
       </div>
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        {requests.length === 0 ? (
-          <div className="p-8 text-center text-gray-400"><Calendar className="w-10 h-10 mx-auto mb-3 text-gray-200" />No {filter} leave requests</div>
-        ) : (
-          <div className="divide-y divide-gray-50">
-            {requests.map(req => (
-              <div key={req.id} className="p-4 hover:bg-gray-50">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="font-medium text-gray-800 text-sm">{req.employee?.full_name}</p>
-                      <span className="text-xs text-gray-500">{req.employee?.department}</span>
+      <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+              {['Employee', 'Leave Type', 'From', 'To', 'Days', 'Reason', 'Status', 'Action'].map(h => (
+                <th key={h} style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#6B7280', textTransform: 'uppercase' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: '#9CA3AF' }}>Loading...</td></tr>
+            ) : requests.length === 0 ? (
+              <tr><td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: '#9CA3AF' }}>No leave requests</td></tr>
+            ) : requests.map((r, i) => (
+              <tr key={r.id} style={{ borderBottom: '1px solid #F3F4F6', background: i % 2 === 0 ? 'white' : '#FAFAFA' }}>
+                <td style={{ padding: '12px 16px' }}>
+                  <p style={{ fontSize: '13px', fontWeight: '600', color: '#111827', margin: 0 }}>{r.profiles?.full_name}</p>
+                  <p style={{ fontSize: '12px', color: '#9CA3AF', margin: 0 }}>{r.profiles?.employee_id}</p>
+                </td>
+                <td style={{ padding: '12px 16px', fontSize: '13px', color: '#374151' }}>{r.leave_type}</td>
+                <td style={{ padding: '12px 16px', fontSize: '13px', color: '#374151' }}>{r.start_date}</td>
+                <td style={{ padding: '12px 16px', fontSize: '13px', color: '#374151' }}>{r.end_date}</td>
+                <td style={{ padding: '12px 16px', fontSize: '13px', color: '#374151' }}>{r.total_days}</td>
+                <td style={{ padding: '12px 16px', fontSize: '13px', color: '#6B7280', maxWidth: '150px' }}>{r.reason}</td>
+                <td style={{ padding: '12px 16px' }}>
+                  <span style={{ ...statusStyle[r.status], padding: '3px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: '600' }}>{r.status}</span>
+                </td>
+                <td style={{ padding: '12px 16px' }}>
+                  {r.status === 'pending' && (
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button onClick={() => handleAction(r.id, 'approved')} style={{ padding: '4px 10px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>Approve</button>
+                      <button onClick={() => handleAction(r.id, 'rejected')} style={{ padding: '4px 10px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>Reject</button>
                     </div>
-                    <p className="text-sm text-gray-600">{req.leave_type?.name} · {req.total_hours / 8} day(s)</p>
-                    <p className="text-xs text-gray-400">{formatDate(req.start_date)}{req.end_date !== req.start_date ? ' → ' + formatDate(req.end_date) : ''}</p>
-                    {req.reason && <p className="text-xs text-gray-400 italic mt-0.5">"{req.reason}"</p>}
-                    {req.mc_amount && <p className="text-xs text-orange-500 mt-0.5">MC Claim: RM{req.mc_amount}</p>}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${getStatusColor(req.status)}`}>{req.status}</span>
-                    {req.status === 'pending' && <button onClick={() => setSelected(req)} className="p-2 hover:bg-gray-100 rounded-lg"><Eye className="w-4 h-4 text-gray-400" /></button>}
-                  </div>
-                </div>
-              </div>
+                  )}
+                </td>
+              </tr>
             ))}
-          </div>
-        )}
+          </tbody>
+        </table>
       </div>
-      {selected && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-            <h2 className="font-semibold text-gray-800 mb-4">Review Leave Request</h2>
-            <div className="bg-gray-50 rounded-xl p-4 mb-4 space-y-2">
-              <p className="text-sm"><span className="text-gray-500">Employee:</span> <strong>{selected.employee?.full_name}</strong></p>
-              <p className="text-sm"><span className="text-gray-500">Type:</span> {selected.leave_type?.name}</p>
-              <p className="text-sm"><span className="text-gray-500">Duration:</span> {selected.total_hours / 8} day(s)</p>
-              <p className="text-sm"><span className="text-gray-500">Date:</span> {formatDate(selected.start_date)}</p>
-              {selected.reason && <p className="text-sm"><span className="text-gray-500">Reason:</span> {selected.reason}</p>}
-              {selected.mc_document_url && <a href={selected.mc_document_url} target="_blank" className="text-sm text-blue-500 underline">View MC Document</a>}
-            </div>
-            <textarea value={reviewNote} onChange={e => setReviewNote(e.target.value)} rows={2} placeholder="Add a note (optional)..."
-              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:outline-none text-sm resize-none mb-4" />
-            <div className="flex gap-3">
-              <button onClick={() => { setSelected(null); setReviewNote('') }} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600">Cancel</button>
-              <button onClick={() => handleReview(selected.id, 'rejected')} disabled={loading} className="flex-1 py-2.5 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-2"><XCircle className="w-4 h-4" /> Reject</button>
-              <button onClick={() => handleReview(selected.id, 'approved')} disabled={loading} className="flex-1 py-2.5 bg-green-700 text-white rounded-xl text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-2"><CheckCircle className="w-4 h-4" /> Approve</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

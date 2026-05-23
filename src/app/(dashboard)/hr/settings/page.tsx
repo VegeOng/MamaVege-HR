@@ -26,8 +26,7 @@ export default function HRSettingsPage() {
   }
 
   async function handleSave() {
-    setSaving(true)
-    setMsg('')
+    setSaving(true); setMsg('')
     const { data: { user } } = await supabase.auth.getUser()
     await supabase.from('profiles').update({ full_name: fullName, phone }).eq('id', user!.id)
     setMsg('Profile updated!')
@@ -42,59 +41,57 @@ export default function HRSettingsPage() {
     else { setMsg('Password updated!'); setNewPw(''); setConfirmPw('') }
   }
 
-  if (loading) return <div className="p-6 text-gray-400">Loading...</div>
+  if (loading) return <div style={{ padding: '32px', color: '#9CA3AF' }}>Loading...</div>
 
   return (
-    <div className="p-6 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-800 mb-1">Settings 设置</h1>
-      <p className="text-gray-500 text-sm mb-6">Manage your account</p>
+    <div style={{ padding: '32px', maxWidth: '640px' }}>
+      <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#1B4332', margin: '0 0 4px' }}>Settings 设置</h1>
+      <p style={{ color: '#6B7280', fontSize: '14px', margin: '0 0 24px' }}>Manage your account</p>
       {msg && (
-        <div className={`mb-4 px-4 py-3 rounded-xl text-sm ${msg.includes('Error') || msg.includes('match') ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-700'}`}>
+        <div style={{ marginBottom: '16px', padding: '12px 16px', borderRadius: '10px', fontSize: '13px', background: msg.includes('Error') || msg.includes('match') ? '#fee2e2' : '#dcfce7', color: msg.includes('Error') || msg.includes('match') ? '#dc2626' : '#16a34a' }}>
           {msg}
         </div>
       )}
-      <div className="bg-white rounded-xl shadow-sm p-6 mb-5">
-        <h2 className="font-semibold text-gray-700 mb-4">Profile Information</h2>
-        <div className="grid grid-cols-2 gap-4 mb-4">
+      <div style={{ background: 'white', borderRadius: '12px', padding: '24px', marginBottom: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+        <h2 style={{ fontSize: '16px', fontWeight: '600', color: '#111827', margin: '0 0 20px' }}>Profile Information</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Full Name</label>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#6B7280', marginBottom: '6px' }}>Full Name</label>
             <input value={fullName} onChange={e => setFullName(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+              style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #E5E7EB', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Phone</label>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#6B7280', marginBottom: '6px' }}>Phone</label>
             <input value={phone} onChange={e => setPhone(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+              style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #E5E7EB', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Employee ID</label>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#6B7280', marginBottom: '6px' }}>Employee ID</label>
             <input value={employeeId} disabled
-              className="w-full px-3 py-2 border border-gray-100 rounded-lg text-sm bg-gray-50 text-gray-400" />
+              style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #F3F4F6', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box', background: '#F9FAFB', color: '#9CA3AF' }} />
           </div>
         </div>
         <button onClick={handleSave} disabled={saving}
-          className="px-4 py-2 bg-green-700 text-white rounded-lg text-sm font-medium">
+          style={{ padding: '10px 24px', background: saving ? '#9CA3AF' : '#1B4332', color: 'white', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>
           {saving ? 'Saving...' : 'Save Changes'}
         </button>
       </div>
-      <div className="bg-white rounded-xl shadow-sm p-6">
-        <h2 className="font-semibold text-gray-700 mb-4">Change Password 修改密码</h2>
-        <div className="space-y-3 mb-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">New Password</label>
-            <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
-              placeholder="Min 6 characters" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Confirm Password</label>
-            <input type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
-              placeholder="Repeat new password" />
-          </div>
+      <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+        <h2 style={{ fontSize: '16px', fontWeight: '600', color: '#111827', margin: '0 0 20px' }}>Change Password 修改密码</h2>
+        <div style={{ marginBottom: '16px' }}>
+          <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#6B7280', marginBottom: '6px' }}>New Password</label>
+          <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)}
+            style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #E5E7EB', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}
+            placeholder="Min 6 characters" />
+        </div>
+        <div style={{ marginBottom: '20px' }}>
+          <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#6B7280', marginBottom: '6px' }}>Confirm Password</label>
+          <input type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)}
+            style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #E5E7EB', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}
+            placeholder="Repeat new password" />
         </div>
         <button onClick={handlePassword}
-          className="px-4 py-2 bg-gray-700 text-white rounded-lg text-sm font-medium">
+          style={{ padding: '10px 24px', background: '#374151', color: 'white', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>
           Update Password
         </button>
       </div>

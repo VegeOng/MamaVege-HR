@@ -34,67 +34,66 @@ export default function HRHolidaysPage() {
   }
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
-      <div className="mb-6 flex items-center justify-between">
+    <div style={{ padding: '32px', maxWidth: '900px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Public Holidays 公共假期</h1>
-          <p className="text-gray-500 text-sm mt-1">{holidays.length} holidays</p>
+          <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#1B4332', margin: '0 0 4px' }}>Public Holidays 公共假期</h1>
+          <p style={{ color: '#6B7280', fontSize: '14px', margin: 0 }}>{holidays.length} holidays</p>
         </div>
-        <button onClick={() => setShowAdd(!showAdd)}
-          className="px-4 py-2 bg-green-700 text-white rounded-xl text-sm font-medium">
+        <button onClick={() => setShowAdd(!showAdd)} style={{ padding: '10px 20px', background: '#1B4332', color: 'white', border: 'none', borderRadius: '10px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>
           + Add Holiday
         </button>
       </div>
       {showAdd && (
-        <div className="bg-white rounded-xl shadow-sm p-5 mb-5 border border-green-100">
-          <h3 className="font-semibold text-gray-700 mb-4">New Holiday</h3>
-          <div className="grid grid-cols-2 gap-4 mb-4">
+        <div style={{ background: 'white', borderRadius: '12px', padding: '24px', marginBottom: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', border: '1px solid #d1fae5' }}>
+          <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#111827', margin: '0 0 16px' }}>New Holiday</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Name</label>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#6B7280', marginBottom: '6px' }}>Holiday Name</label>
               <input value={name} onChange={e => setName(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #E5E7EB', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}
                 placeholder="e.g. Hari Raya" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Date</label>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#6B7280', marginBottom: '6px' }}>Date</label>
               <input type="date" value={date} onChange={e => setDate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+                style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #E5E7EB', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }} />
             </div>
           </div>
-          <div className="mb-4">
-            <label className="block text-xs font-medium text-gray-500 mb-1">Description (optional)</label>
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#6B7280', marginBottom: '6px' }}>Description (optional)</label>
             <input value={desc} onChange={e => setDesc(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+              style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #E5E7EB', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}
               placeholder="Optional notes" />
           </div>
-          <div className="flex gap-2">
-            <button onClick={handleAdd} className="px-4 py-2 bg-green-700 text-white rounded-lg text-sm">Save</button>
-            <button onClick={() => setShowAdd(false)} className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm">Cancel</button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button onClick={handleAdd} style={{ padding: '9px 20px', background: '#1B4332', color: 'white', border: 'none', borderRadius: '8px', fontSize: '14px', cursor: 'pointer' }}>Save</button>
+            <button onClick={() => setShowAdd(false)} style={{ padding: '9px 20px', background: '#F3F4F6', color: '#6B7280', border: 'none', borderRadius: '8px', fontSize: '14px', cursor: 'pointer' }}>Cancel</button>
           </div>
         </div>
       )}
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-        <table className="w-full">
-          <thead className="bg-gray-50 border-b border-gray-200">
-            <tr>
-              {['Date','Day','Name','Description',''].map(h => (
-                <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">{h}</th>
+      <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+              {['Date', 'Day', 'Name', 'Description', ''].map(h => (
+                <th key={h} style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#6B7280', textTransform: 'uppercase' }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={5} className="text-center py-10 text-gray-400">Loading...</td></tr>
+              <tr><td colSpan={5} style={{ textAlign: 'center', padding: '40px', color: '#9CA3AF' }}>Loading...</td></tr>
             ) : holidays.length === 0 ? (
-              <tr><td colSpan={5} className="text-center py-10 text-gray-400">No holidays yet</td></tr>
+              <tr><td colSpan={5} style={{ textAlign: 'center', padding: '40px', color: '#9CA3AF' }}>No holidays yet</td></tr>
             ) : holidays.map((h, i) => (
-              <tr key={h.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                <td className="px-4 py-3 text-sm font-medium text-gray-800">{h.date}</td>
-                <td className="px-4 py-3 text-sm text-gray-500">{new Date(h.date).toLocaleDateString('en-MY', { weekday: 'long' })}</td>
-                <td className="px-4 py-3 text-sm text-gray-800">{h.name}</td>
-                <td className="px-4 py-3 text-sm text-gray-500">{h.description || '-'}</td>
-                <td className="px-4 py-3 text-right">
-                  <button onClick={() => handleDelete(h.id)} className="text-red-400 hover:text-red-600 text-xs">Delete</button>
+              <tr key={h.id} style={{ borderBottom: '1px solid #F3F4F6', background: i % 2 === 0 ? 'white' : '#FAFAFA' }}>
+                <td style={{ padding: '12px 16px', fontSize: '13px', fontWeight: '600', color: '#111827' }}>{h.date}</td>
+                <td style={{ padding: '12px 16px', fontSize: '13px', color: '#6B7280' }}>{new Date(h.date).toLocaleDateString('en-MY', { weekday: 'long' })}</td>
+                <td style={{ padding: '12px 16px', fontSize: '13px', color: '#374151' }}>{h.name}</td>
+                <td style={{ padding: '12px 16px', fontSize: '13px', color: '#6B7280' }}>{h.description || '-'}</td>
+                <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                  <button onClick={() => handleDelete(h.id)} style={{ color: '#dc2626', background: 'none', border: 'none', fontSize: '12px', cursor: 'pointer' }}>Delete</button>
                 </td>
               </tr>
             ))}

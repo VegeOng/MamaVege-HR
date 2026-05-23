@@ -24,53 +24,59 @@ export default function HRClaimsPage() {
     loadData()
   }
 
+  const statusStyle: any = {
+    approved: { background: '#dcfce7', color: '#16a34a' },
+    rejected: { background: '#fee2e2', color: '#dc2626' },
+    pending: { background: '#fef3c7', color: '#d97706' },
+  }
+
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-800 mb-1">Claims 报销管理</h1>
-      <p className="text-gray-500 text-sm mb-5">Review and approve employee claims</p>
-      <div className="flex gap-2 mb-5">
-        {['pending','approved','rejected','all'].map(f => (
-          <button key={f} onClick={() => setFilter(f)}
-            className={`px-4 py-2 rounded-xl text-sm font-medium capitalize ${filter === f ? 'bg-green-700 text-white' : 'bg-white text-gray-600 border border-gray-200'}`}>
-            {f}
-          </button>
+    <div style={{ padding: '32px', maxWidth: '1200px' }}>
+      <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#1B4332', margin: '0 0 4px' }}>Claims 报销管理</h1>
+      <p style={{ color: '#6B7280', fontSize: '14px', margin: '0 0 20px' }}>Review and approve employee claims</p>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
+        {['pending', 'approved', 'rejected', 'all'].map(f => (
+          <button key={f} onClick={() => setFilter(f)} style={{
+            padding: '8px 16px', borderRadius: '12px', fontSize: '13px', fontWeight: '500',
+            border: 'none', cursor: 'pointer', textTransform: 'capitalize',
+            background: filter === f ? '#1B4332' : 'white',
+            color: filter === f ? 'white' : '#6B7280',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+          }}>{f}</button>
         ))}
       </div>
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-        <table className="w-full">
-          <thead className="bg-gray-50 border-b border-gray-200">
-            <tr>
-              {['Employee','Date','Category','Amount','Description','Status','Action'].map(h => (
-                <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">{h}</th>
+      <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+              {['Employee', 'Date', 'Category', 'Amount', 'Description', 'Status', 'Action'].map(h => (
+                <th key={h} style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#6B7280', textTransform: 'uppercase' }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={7} className="text-center py-10 text-gray-400">Loading...</td></tr>
+              <tr><td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: '#9CA3AF' }}>Loading...</td></tr>
             ) : claims.length === 0 ? (
-              <tr><td colSpan={7} className="text-center py-10 text-gray-400">No claims</td></tr>
+              <tr><td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: '#9CA3AF' }}>No claims</td></tr>
             ) : claims.map((r, i) => (
-              <tr key={r.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                <td className="px-4 py-3 text-sm font-medium text-gray-800">
-                  {r.profiles?.full_name}
-                  <br/>
-                  <span className="text-xs text-gray-400">{r.profiles?.employee_id}</span>
+              <tr key={r.id} style={{ borderBottom: '1px solid #F3F4F6', background: i % 2 === 0 ? 'white' : '#FAFAFA' }}>
+                <td style={{ padding: '12px 16px' }}>
+                  <p style={{ fontSize: '13px', fontWeight: '600', color: '#111827', margin: 0 }}>{r.profiles?.full_name}</p>
+                  <p style={{ fontSize: '12px', color: '#9CA3AF', margin: 0 }}>{r.profiles?.employee_id}</p>
                 </td>
-                <td className="px-4 py-3 text-sm text-gray-600">{r.date}</td>
-                <td className="px-4 py-3 text-sm text-gray-600 capitalize">{r.category}</td>
-                <td className="px-4 py-3 text-sm font-semibold text-gray-800">RM {(r.amount||0).toFixed(2)}</td>
-                <td className="px-4 py-3 text-sm text-gray-600">{r.description}</td>
-                <td className="px-4 py-3">
-                  <span className={`px-2 py-1 rounded-full text-xs font-semibold ${r.status === 'approved' ? 'bg-green-100 text-green-700' : r.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                    {r.status}
-                  </span>
+                <td style={{ padding: '12px 16px', fontSize: '13px', color: '#374151' }}>{r.date}</td>
+                <td style={{ padding: '12px 16px', fontSize: '13px', color: '#374151', textTransform: 'capitalize' }}>{r.category}</td>
+                <td style={{ padding: '12px 16px', fontSize: '13px', fontWeight: '600', color: '#111827' }}>RM {(r.amount || 0).toFixed(2)}</td>
+                <td style={{ padding: '12px 16px', fontSize: '13px', color: '#6B7280' }}>{r.description}</td>
+                <td style={{ padding: '12px 16px' }}>
+                  <span style={{ ...statusStyle[r.status], padding: '3px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: '600' }}>{r.status}</span>
                 </td>
-                <td className="px-4 py-3">
+                <td style={{ padding: '12px 16px' }}>
                   {r.status === 'pending' && (
-                    <div className="flex gap-2">
-                      <button onClick={() => handleAction(r.id, 'approved')} className="px-3 py-1 bg-green-600 text-white text-xs rounded-lg">Approve</button>
-                      <button onClick={() => handleAction(r.id, 'rejected')} className="px-3 py-1 bg-red-500 text-white text-xs rounded-lg">Reject</button>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button onClick={() => handleAction(r.id, 'approved')} style={{ padding: '4px 10px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>Approve</button>
+                      <button onClick={() => handleAction(r.id, 'rejected')} style={{ padding: '4px 10px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>Reject</button>
                     </div>
                   )}
                 </td>

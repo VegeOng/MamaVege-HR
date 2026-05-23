@@ -28,49 +28,47 @@ export default function HRPayrollPage() {
   const totalSalary = employees.reduce((sum, e) => sum + (e.basic_salary || 0), 0)
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <div className="mb-6 flex items-center justify-between">
+    <div style={{ padding: '32px', maxWidth: '1200px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Payroll 薪资管理</h1>
-          <p className="text-gray-500 text-sm mt-1">Monthly payroll summary</p>
+          <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#1B4332', margin: '0 0 4px' }}>Payroll 薪资管理</h1>
+          <p style={{ color: '#6B7280', fontSize: '14px', margin: 0 }}>Monthly payroll summary</p>
         </div>
         <input type="month" value={month} onChange={e => setMonth(e.target.value)}
-          className="px-4 py-2 border border-gray-200 rounded-xl text-sm" />
+          style={{ padding: '8px 12px', border: '1.5px solid #E5E7EB', borderRadius: '10px', fontSize: '14px' }} />
       </div>
-
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        <div className="bg-white rounded-xl p-5 shadow-sm">
-          <p className="text-gray-500 text-sm mb-1">Total Employees</p>
-          <p className="text-2xl font-bold text-green-700">{employees.length}</p>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+        <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+          <p style={{ color: '#6B7280', fontSize: '13px', margin: '0 0 8px' }}>Total Employees</p>
+          <p style={{ fontSize: '32px', fontWeight: '700', color: '#16a34a', margin: 0 }}>{employees.length}</p>
         </div>
-        <div className="bg-white rounded-xl p-5 shadow-sm">
-          <p className="text-gray-500 text-sm mb-1">Total Basic Salary</p>
-          <p className="text-2xl font-bold text-blue-700">RM {totalSalary.toFixed(2)}</p>
+        <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+          <p style={{ color: '#6B7280', fontSize: '13px', margin: '0 0 8px' }}>Total Basic Salary</p>
+          <p style={{ fontSize: '32px', fontWeight: '700', color: '#2563eb', margin: 0 }}>RM {totalSalary.toFixed(2)}</p>
         </div>
       </div>
-
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-        <table className="w-full">
-          <thead className="bg-gray-50 border-b border-gray-200">
-            <tr>
-              {['ID','Name','Department','Basic Salary','Bank','Account'].map(h => (
-                <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">{h}</th>
+      <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+              {['ID', 'Name', 'Department', 'Basic Salary', 'Bank', 'Account'].map(h => (
+                <th key={h} style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#6B7280', textTransform: 'uppercase' }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={6} className="text-center py-10 text-gray-400">Loading...</td></tr>
+              <tr><td colSpan={6} style={{ textAlign: 'center', padding: '40px', color: '#9CA3AF' }}>Loading...</td></tr>
             ) : employees.length === 0 ? (
-              <tr><td colSpan={6} className="text-center py-10 text-gray-400">No employees found</td></tr>
+              <tr><td colSpan={6} style={{ textAlign: 'center', padding: '40px', color: '#9CA3AF' }}>No employees found</td></tr>
             ) : employees.map((e, i) => (
-              <tr key={e.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                <td className="px-4 py-3 text-sm text-gray-500">{e.employee_id}</td>
-                <td className="px-4 py-3 text-sm font-medium text-gray-800">{e.full_name}</td>
-                <td className="px-4 py-3 text-sm text-gray-500">{e.department || '-'}</td>
-                <td className="px-4 py-3 text-sm font-bold text-green-700">RM {(e.basic_salary || 0).toFixed(2)}</td>
-                <td className="px-4 py-3 text-sm text-gray-500">{e.bank_name || '-'}</td>
-                <td className="px-4 py-3 text-sm text-gray-500">{e.bank_account || '-'}</td>
+              <tr key={e.id} style={{ borderBottom: '1px solid #F3F4F6', background: i % 2 === 0 ? 'white' : '#FAFAFA' }}>
+                <td style={{ padding: '12px 16px', fontSize: '13px', color: '#6B7280' }}>{e.employee_id}</td>
+                <td style={{ padding: '12px 16px', fontSize: '13px', fontWeight: '600', color: '#111827' }}>{e.full_name}</td>
+                <td style={{ padding: '12px 16px', fontSize: '13px', color: '#6B7280' }}>{e.department || '-'}</td>
+                <td style={{ padding: '12px 16px', fontSize: '13px', fontWeight: '700', color: '#16a34a' }}>RM {(e.basic_salary || 0).toFixed(2)}</td>
+                <td style={{ padding: '12px 16px', fontSize: '13px', color: '#6B7280' }}>{e.bank_name || '-'}</td>
+                <td style={{ padding: '12px 16px', fontSize: '13px', color: '#6B7280' }}>{e.bank_account || '-'}</td>
               </tr>
             ))}
           </tbody>
