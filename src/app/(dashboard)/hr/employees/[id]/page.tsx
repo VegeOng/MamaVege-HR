@@ -48,8 +48,21 @@ export default function EditEmployeePage() {
 
   async function handleSave() {
     setSaving(true); setMsg(null)
+
+    let employeeId = form.employee_id
+    let isActive = form.is_active
+    // Activating a pending account — assign a real employee ID and activate it
+    if (form.role !== 'pending' && (employeeId?.startsWith('PENDING-') || !isActive)) {
+      if (employeeId?.startsWith('PENDING-')) {
+        const { count } = await supabase.from('profiles').select('id', { count: 'exact', head: true }).not('employee_id', 'like', 'PENDING-%')
+        employeeId = `MV${String((count || 0) + 1).padStart(4, '0')}`
+      }
+      isActive = true
+    }
+
     const { error } = await supabase.from('profiles').update({
       full_name: form.full_name,
+      employee_id: employeeId,
       phone: form.phone,
       whatsapp_number: form.whatsapp_number,
       ic_number: form.ic_number,
@@ -67,9 +80,10 @@ export default function EditEmployeePage() {
       tax_number: form.tax_number,
       bank_name: form.bank_name,
       bank_account: form.bank_account,
+      is_active: isActive,
     }).eq('id', id)
     if (error) setMsg({ type: 'error', text: error.message })
-    else setMsg({ type: 'success', text: 'Employee profile updated!' })
+    else { setMsg({ type: 'success', text: 'Employee profile updated!' }); loadData() }
     setSaving(false)
     setTimeout(() => setMsg(null), 3000)
   }
@@ -115,6 +129,11 @@ export default function EditEmployeePage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <div><Label required>Full Name</Label><input value={form.full_name || ''} onChange={e => f('full_name', e.target.value)} style={inputStyle} /></div>
             <div><Label>Email (cannot change)</Label><input value={form.email || ''} disabled style={{ ...inputStyle, background: colors.borderLight, color: colors.textMuted }} /></div>
+            {form.employee_id?.startsWith('PENDING-') ? (
+              <div><Label>Employee ID</Label><p style={{ margin: '8px 0 0', fontSize: font.xs, color: colors.textMuted }}>Will be auto-assigned (e.g. MV0012) once a role is set</p></div>
+            ) : (
+              <div><Label>Employee ID</Label><input value={form.employee_id || ''} onChange={e => f('employee_id', e.target.value)} style={inputStyle} /></div>
+            )}
             <div><Label>Phone</Label><input value={form.phone || ''} onChange={e => f('phone', e.target.value)} placeholder="+60 12-345 6789" style={inputStyle} /></div>
             <div><Label>WhatsApp</Label><input value={form.whatsapp_number || ''} onChange={e => f('whatsapp_number', e.target.value)} placeholder="+60 12-345 6789" style={inputStyle} /></div>
             <div>
@@ -143,9 +162,11 @@ export default function EditEmployeePage() {
             <div>
               <Label>Role</Label>
               <select value={form.role || 'employee'} onChange={e => f('role', e.target.value)} style={inputStyle}>
+                {form.role === 'pending' && <option value="pending">Pending 待审核</option>}
                 <option value="employee">Employee</option>
                 <option value="supervisor">Supervisor</option>
                 <option value="hr">HR</option>
+                <option value="director">Director 老板</option>
               </select>
             </div>
             <div><Label>Join Date</Label><input type="date" value={form.join_date || ''} onChange={e => f('join_date', e.target.value)} style={inputStyle} /></div>

@@ -190,6 +190,7 @@ export default function NewEmployeePage() {
                 <option value="employee">Employee</option>
                 <option value="supervisor">Supervisor</option>
                 <option value="hr">HR</option>
+                <option value="director">Director 老板</option>
               </select>
             </div>
             <div>

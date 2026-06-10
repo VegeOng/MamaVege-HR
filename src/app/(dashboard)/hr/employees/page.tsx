@@ -2,28 +2,36 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
-import { Search, Plus, UserX } from 'lucide-react'
+import { Search, Plus, UserX, UserCheck } from 'lucide-react'
 import { colors, radius, shadow, styles, font } from '@/lib/design'
 
 const roleStyle: Record<string, { background: string; color: string }> = {
   hr:         { background: colors.infoBg,     color: colors.infoText },
   supervisor: { background: colors.warningBg,  color: colors.warningText },
   employee:   { background: colors.successBg,  color: colors.successText },
+  director:   { background: colors.infoBg, color: colors.infoText },
+  pending:    { background: colors.warningBg,  color: colors.warningText },
 }
 
 export default function HREmployeesPage() {
   const [employees, setEmployees] = useState<any[]>([])
+  const [pending, setPending] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [dept, setDept] = useState('all')
+  const [tab, setTab] = useState<'active' | 'pending'>('active')
   const supabase = createClient()
 
   useEffect(() => { loadData() }, [])
 
   async function loadData() {
     setLoading(true)
-    const { data } = await supabase.from('profiles').select('*').eq('is_active', true).neq('role', 'director').order('employee_id')
+    const [{ data }, { data: pend }] = await Promise.all([
+      supabase.from('profiles').select('*').eq('is_active', true).neq('role', 'director').order('employee_id'),
+      supabase.from('profiles').select('*').eq('role', 'pending').order('created_at', { ascending: false }),
+    ])
     setEmployees(data || [])
+    setPending(pend || [])
     setLoading(false)
   }
 
@@ -58,6 +66,79 @@ export default function HREmployeesPage() {
           </Link>
         </div>
 
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+          {([
+            { id: 'active', label: 'Active', icon: <UserCheck size={13} />, count: employees.length },
+            { id: 'pending', label: 'Pending 待审核', icon: <UserX size={13} />, count: pending.length },
+          ] as const).map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)} style={{
+              display: 'flex', alignItems: 'center', gap: '6px',
+              padding: '8px 16px', borderRadius: radius.full, fontSize: font.sm, fontWeight: '600',
+              border: 'none', cursor: 'pointer',
+              background: tab === t.id ? colors.primary : 'white',
+              color: tab === t.id ? 'white' : colors.textMuted,
+              boxShadow: shadow.card,
+            }}>
+              {t.icon}{t.label}
+              {t.count > 0 && (
+                <span style={{
+                  background: tab === t.id ? 'rgba(255,255,255,0.25)' : colors.warningBg,
+                  color: tab === t.id ? 'white' : colors.warningText,
+                  borderRadius: radius.full, padding: '1px 7px', fontSize: '11px', fontWeight: '700',
+                }}>{t.count}</span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'pending' ? (
+          <div style={{ ...styles.card, padding: 0, overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: colors.borderLight, borderBottom: `1px solid ${colors.border}` }}>
+                  {['User', 'Email', 'Signed Up', ''].map(h => (
+                    <th key={h} style={{ padding: '11px 16px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan={4} style={{ textAlign: 'center', padding: '48px', color: colors.textMuted, fontSize: font.base }}>Loading...</td></tr>
+                ) : pending.length === 0 ? (
+                  <tr><td colSpan={4} style={{ textAlign: 'center', padding: '48px', color: colors.textMuted, fontSize: font.base }}>No accounts awaiting approval 🎉</td></tr>
+                ) : pending.map((p) => (
+                  <tr key={p.id} style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
+                    <td style={{ padding: '13px 16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '11px' }}>
+                        <div style={{
+                          width: '36px', height: '36px', borderRadius: radius.md, flexShrink: 0,
+                          background: 'linear-gradient(135deg, #1B4332, #52B788)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          color: 'white', fontSize: '12px', fontWeight: '700'
+                        }}>
+                          {initials(p.full_name)}
+                        </div>
+                        <p style={{ margin: 0, fontSize: font.base, fontWeight: '600', color: colors.textPrimary }}>{p.full_name}</p>
+                      </div>
+                    </td>
+                    <td style={{ padding: '13px 16px', fontSize: font.sm, color: colors.textMuted }}>{p.email}</td>
+                    <td style={{ padding: '13px 16px', fontSize: font.sm, color: colors.textMuted }}>
+                      {p.created_at ? new Date(p.created_at).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
+                    </td>
+                    <td style={{ padding: '13px 16px' }}>
+                      <Link href={`/hr/employees/${p.id}`} style={{
+                        padding: '5px 12px', background: colors.primary, color: 'white',
+                        borderRadius: radius.sm, fontSize: '12px', textDecoration: 'none', fontWeight: '600'
+                      }}>Assign Role 分配角色</Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+        <>
         {/* Filters */}
         <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
           <div style={{ position: 'relative', flex: 1, maxWidth: '320px' }}>
@@ -140,6 +221,8 @@ export default function HREmployeesPage() {
             </tbody>
           </table>
         </div>
+        </>
+        )}
       </div>
     </div>
   )

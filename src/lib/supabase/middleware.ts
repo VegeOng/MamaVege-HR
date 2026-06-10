@@ -25,7 +25,7 @@ export async function updateSession(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  const publicPaths = ['/login', '/forgot-password', '/reset-password']
+  const publicPaths = ['/login', '/forgot-password', '/reset-password', '/auth', '/pending-approval']
   const isPublicPath = publicPaths.some(p => request.nextUrl.pathname.startsWith(p))
 
   if (!user && !isPublicPath) {
@@ -45,8 +45,24 @@ export async function updateSession(request: NextRequest) {
     if (profile?.role === 'hr') url.pathname = '/hr/dashboard'
     else if (profile?.role === 'director') url.pathname = '/director/dashboard'
     else if (profile?.role === 'supervisor') url.pathname = '/employee/dashboard'
+    else if (!profile || profile.role === 'pending') url.pathname = '/pending-approval'
     else url.pathname = '/employee/dashboard'
     return NextResponse.redirect(url)
+  }
+
+  // Users awaiting HR role assignment can only access the pending-approval page
+  if (user && !isPublicPath) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (!profile || profile.role === 'pending') {
+      const url = request.nextUrl.clone()
+      url.pathname = '/pending-approval'
+      return NextResponse.redirect(url)
+    }
   }
 
   return supabaseResponse
