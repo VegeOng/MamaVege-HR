@@ -2,13 +2,18 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Printer, Download } from 'lucide-react'
-import { colors, styles } from '@/lib/design'
+import { colors, radius, styles } from '@/lib/design'
 
 function rm(n: number) { return 'RM ' + n.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }
+
+const MEDICAL_ID = 'd543eca8-7754-4378-a3e2-e7a9541358e3'
 
 export default function EmployeePayslipPage() {
   const [profile, setProfile] = useState<any>(null)
   const [rates, setRates] = useState({ epf: 11, socso: 0.5, eis: 0.2 })
+  const [leaveBalances, setLeaveBalances] = useState<any[]>([])
+  const [claims, setClaims] = useState<any[]>([])
+  const [claimLimits, setClaimLimits] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
   const [selectedMonth, setSelectedMonth] = useState(() => {
@@ -22,11 +27,17 @@ export default function EmployeePayslipPage() {
   async function loadData() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    const [{ data: profileData }, { data: settings }] = await Promise.all([
+    const [{ data: profileData }, { data: settings }, { data: leaveBal }, { data: claimsData }, { data: limits }] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', user.id).single(),
       supabase.from('company_settings').select('key,value').in('key', ['epf_employee_rate', 'socso_employee_rate', 'eis_rate']),
+      supabase.from('leave_entitlements').select('*, leave_type:leave_types(name, code)').eq('employee_id', user.id).eq('year', new Date().getFullYear()),
+      supabase.from('claims').select('*, claim_type:claim_types(name, code)').eq('employee_id', user.id),
+      supabase.from('claim_limits').select('*').eq('employee_id', user.id),
     ])
     setProfile(profileData)
+    setLeaveBalances(leaveBal || [])
+    setClaims(claimsData || [])
+    setClaimLimits(limits || [])
     if (settings) {
       const s: Record<string, string> = Object.fromEntries(settings.map((r: any) => [r.key, r.value]))
       setRates({
@@ -64,6 +75,24 @@ export default function EmployeePayslipPage() {
   const netSalary = salary - totalDeductions
   const [year, month] = selectedMonth.split('-').map(Number)
   const monthLabel = new Date(year, month - 1, 1).toLocaleDateString('en-MY', { month: 'long', year: 'numeric' })
+
+  // Leave balances (current year)
+  const leaveRows = leaveBalances
+    .filter(b => b.leave_type?.code !== 'PH')
+    .map(b => ({
+      name: b.leave_type?.name,
+      remaining: ((b.entitled_hours || 0) + (b.carried_forward_hours || 0) - (b.used_hours || 0)) / 8,
+    }))
+
+  // Medical claim yearly balance
+  const medicalLimit = claimLimits.find(l => l.claim_type_id === MEDICAL_ID)?.monthly_limit
+  const medicalUsed = claims
+    .filter(c => c.claim_type_id === MEDICAL_ID && c.status !== 'rejected' && c.year === year)
+    .reduce((s, c) => s + parseFloat(c.amount || 0), 0)
+  const medicalRemaining = medicalLimit !== undefined ? Math.max(0, medicalLimit - medicalUsed) : null
+
+  // Claims submitted in the selected month
+  const monthClaims = claims.filter(c => c.month === month && c.year === year)
 
   const DeductRow = ({ label, value }: { label: string; value: number }) => (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: `1px solid ${colors.borderLight}` }}>
@@ -177,6 +206,62 @@ export default function EmployeePayslipPage() {
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* Leave Balance & Medical Claim Balance */}
+            <div style={{ marginTop: '20px', display: 'grid', gridTemplateColumns: medicalRemaining !== null ? '1fr 1fr' : '1fr', gap: '16px' }}>
+              {leaveRows.length > 0 && (
+                <div style={{ padding: '16px 20px', background: colors.borderLight, borderRadius: '12px' }}>
+                  <p style={{ margin: '0 0 12px', fontSize: '11px', fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Leave Balance 假期余额 ({year})</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '12px' }}>
+                    {leaveRows.map(r => (
+                      <div key={r.name}>
+                        <p style={{ margin: '0 0 2px', fontSize: '10px', color: colors.textMuted, fontWeight: '600' }}>{r.name}</p>
+                        <p style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: colors.textPrimary }}>
+                          {r.remaining % 1 === 0 ? r.remaining.toFixed(0) : r.remaining.toFixed(1)} <span style={{ fontSize: '10px', fontWeight: '600', color: colors.textMuted }}>days</span>
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {medicalRemaining !== null && (
+                <div style={{ padding: '16px 20px', background: colors.borderLight, borderRadius: '12px' }}>
+                  <p style={{ margin: '0 0 12px', fontSize: '11px', fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Medical Claim Balance 医药报销余额 ({year})</p>
+                  <p style={{ margin: '0 0 6px', fontSize: '20px', fontWeight: '800', color: colors.textPrimary }}>{rm(medicalRemaining)} <span style={{ fontSize: '10px', fontWeight: '600', color: colors.textMuted }}>remaining</span></p>
+                  <p style={{ margin: 0, fontSize: '11px', color: colors.textMuted }}>Used {rm(medicalUsed)} of {rm(medicalLimit)} yearly limit</p>
+                </div>
+              )}
+            </div>
+
+            {/* Claims Submitted This Month */}
+            <div style={{ marginTop: '20px', padding: '16px 20px', background: colors.borderLight, borderRadius: '12px' }}>
+              <p style={{ margin: '0 0 12px', fontSize: '11px', fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Claims Submitted 本月报销 — {monthLabel}</p>
+              {monthClaims.length === 0 ? (
+                <p style={{ margin: 0, fontSize: '13px', color: colors.textMuted }}>No claims submitted this month.</p>
+              ) : (
+                <div>
+                  {monthClaims.map((c, i) => {
+                    const s = styles.statusBadge(c.status)
+                    return (
+                      <div key={c.id} style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        padding: '8px 0', borderBottom: i < monthClaims.length - 1 ? `1px solid ${colors.border}` : 'none',
+                      }}>
+                        <div>
+                          <p style={{ margin: 0, fontSize: '13px', fontWeight: '600', color: colors.textPrimary }}>{c.claim_type?.name || '-'}</p>
+                          {c.description && <p style={{ margin: '2px 0 0', fontSize: '11px', color: colors.textMuted }}>{c.description}</p>}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <span style={{ fontSize: '13px', fontWeight: '700', color: colors.textPrimary }}>{rm(parseFloat(c.amount || 0))}</span>
+                          <span style={{ fontSize: '10px', fontWeight: '700', padding: '3px 9px', borderRadius: radius.full, background: s.bg, color: s.color, textTransform: 'capitalize' }}>{s.label}</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           </div>
 
