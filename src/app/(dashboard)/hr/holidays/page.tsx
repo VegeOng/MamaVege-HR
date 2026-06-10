@@ -1,6 +1,8 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { Plus, Trash2, CalendarCheck, X } from 'lucide-react'
+import { colors, radius, shadow, styles, font } from '@/lib/design'
 
 export default function HRHolidaysPage() {
   const [holidays, setHolidays] = useState<any[]>([])
@@ -9,6 +11,7 @@ export default function HRHolidaysPage() {
   const [name, setName] = useState('')
   const [date, setDate] = useState('')
   const [desc, setDesc] = useState('')
+  const [saving, setSaving] = useState(false)
   const supabase = createClient()
 
   useEffect(() => { loadData() }, [])
@@ -22,8 +25,9 @@ export default function HRHolidaysPage() {
 
   async function handleAdd() {
     if (!name || !date) return
+    setSaving(true)
     await supabase.from('public_holidays').insert({ name, date, description: desc })
-    setName(''); setDate(''); setDesc(''); setShowAdd(false)
+    setName(''); setDate(''); setDesc(''); setShowAdd(false); setSaving(false)
     loadData()
   }
 
@@ -33,72 +37,103 @@ export default function HRHolidaysPage() {
     loadData()
   }
 
+  const today = new Date().toISOString().split('T')[0]
+  const upcoming = holidays.filter(h => h.date >= today)
+  const past = holidays.filter(h => h.date < today)
+
   return (
-    <div style={{ padding: '32px', maxWidth: '900px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-        <div>
-          <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#1B4332', margin: '0 0 4px' }}>Public Holidays 公共假期</h1>
-          <p style={{ color: '#6B7280', fontSize: '14px', margin: 0 }}>{holidays.length} holidays</p>
+    <div style={{ ...styles.pageWrapper }}>
+      <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
+          <div>
+            <h1 style={{ ...styles.pageTitle }}>Public Holidays 公共假期</h1>
+            <p style={{ ...styles.pageSubtitle }}>{holidays.length} holidays · {upcoming.length} upcoming</p>
+          </div>
+          <button onClick={() => setShowAdd(!showAdd)} style={{ ...styles.primaryButton, display: 'flex', alignItems: 'center', gap: '6px' }}>
+            {showAdd ? <X size={15} /> : <Plus size={15} />}
+            {showAdd ? 'Cancel' : 'Add Holiday'}
+          </button>
         </div>
-        <button onClick={() => setShowAdd(!showAdd)} style={{ padding: '10px 20px', background: '#1B4332', color: 'white', border: 'none', borderRadius: '10px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>
-          + Add Holiday
-        </button>
-      </div>
-      {showAdd && (
-        <div style={{ background: 'white', borderRadius: '12px', padding: '24px', marginBottom: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', border: '1px solid #d1fae5' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#111827', margin: '0 0 16px' }}>New Holiday</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#6B7280', marginBottom: '6px' }}>Holiday Name</label>
-              <input value={name} onChange={e => setName(e.target.value)}
-                style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #E5E7EB', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}
-                placeholder="e.g. Hari Raya" />
+
+        {/* Add form */}
+        {showAdd && (
+          <div style={{ ...styles.card, marginBottom: '20px' }}>
+            <p style={{ ...styles.sectionLabel }}>New Holiday</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: font.sm, fontWeight: '600', color: colors.textSecondary, marginBottom: '6px' }}>Holiday Name</label>
+                <input value={name} onChange={e => setName(e.target.value)} style={{ ...styles.input }} placeholder="e.g. Hari Raya" />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: font.sm, fontWeight: '600', color: colors.textSecondary, marginBottom: '6px' }}>Date</label>
+                <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ ...styles.input }} />
+              </div>
             </div>
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#6B7280', marginBottom: '6px' }}>Date</label>
-              <input type="date" value={date} onChange={e => setDate(e.target.value)}
-                style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #E5E7EB', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }} />
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: font.sm, fontWeight: '600', color: colors.textSecondary, marginBottom: '6px' }}>Description (optional)</label>
+              <input value={desc} onChange={e => setDesc(e.target.value)} style={{ ...styles.input }} placeholder="Optional notes" />
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button onClick={handleAdd} disabled={saving || !name || !date} style={{ ...styles.primaryButton, opacity: (saving || !name || !date) ? 0.6 : 1 }}>
+                {saving ? 'Saving...' : 'Save'}
+              </button>
+              <button onClick={() => setShowAdd(false)} style={{ ...styles.outlineButton }}>Cancel</button>
             </div>
           </div>
-          <div style={{ marginBottom: '16px' }}>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#6B7280', marginBottom: '6px' }}>Description (optional)</label>
-            <input value={desc} onChange={e => setDesc(e.target.value)}
-              style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #E5E7EB', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}
-              placeholder="Optional notes" />
+        )}
+
+        {/* List */}
+        {loading ? (
+          <div style={{ ...styles.card, textAlign: 'center', padding: '48px', color: colors.textMuted }}>Loading...</div>
+        ) : holidays.length === 0 ? (
+          <div style={{ ...styles.card, textAlign: 'center', padding: '48px' }}>
+            <CalendarCheck size={32} color={colors.textMuted} style={{ margin: '0 auto 12px', display: 'block' }} />
+            <p style={{ margin: 0, color: colors.textMuted, fontSize: font.base }}>No holidays added yet</p>
           </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button onClick={handleAdd} style={{ padding: '9px 20px', background: '#1B4332', color: 'white', border: 'none', borderRadius: '8px', fontSize: '14px', cursor: 'pointer' }}>Save</button>
-            <button onClick={() => setShowAdd(false)} style={{ padding: '9px 20px', background: '#F3F4F6', color: '#6B7280', border: 'none', borderRadius: '8px', fontSize: '14px', cursor: 'pointer' }}>Cancel</button>
-          </div>
-        </div>
-      )}
-      <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
-              {['Date', 'Day', 'Name', 'Description', ''].map(h => (
-                <th key={h} style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#6B7280', textTransform: 'uppercase' }}>{h}</th>
+        ) : (
+          <>
+            {[{ title: 'Upcoming', items: upcoming, dim: false }, { title: 'Past', items: past, dim: true }]
+              .filter(g => g.items.length > 0)
+              .map(group => (
+                <div key={group.title} style={{ marginBottom: '20px' }}>
+                  <p style={{ ...styles.sectionLabel }}>{group.title}</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {group.items.map(h => {
+                      const d = new Date(h.date)
+                      return (
+                        <div key={h.id} style={{ ...styles.card, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: '16px', opacity: group.dim ? 0.6 : 1 }}>
+                          <div style={{
+                            width: '52px', height: '52px', borderRadius: radius.md, flexShrink: 0,
+                            background: group.dim ? colors.borderLight : colors.gradients.green,
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                          }}>
+                            <span style={{ fontSize: '18px', fontWeight: '800', color: group.dim ? colors.textMuted : 'white', lineHeight: 1 }}>{d.getDate()}</span>
+                            <span style={{ fontSize: '10px', fontWeight: '700', color: group.dim ? colors.textMuted : 'rgba(255,255,255,0.8)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{d.toLocaleDateString('en-MY', { month: 'short' })}</span>
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p style={{ fontSize: font.base, fontWeight: '700', color: colors.textPrimary, margin: '0 0 2px' }}>{h.name}</p>
+                            <p style={{ fontSize: font.xs, color: colors.textMuted, margin: 0 }}>
+                              {d.toLocaleDateString('en-MY', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                              {h.description ? ` · ${h.description}` : ''}
+                            </p>
+                          </div>
+                          <button onClick={() => handleDelete(h.id)} style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            width: '32px', height: '32px', borderRadius: radius.md, flexShrink: 0,
+                            background: colors.dangerBg, color: colors.dangerText, border: 'none', cursor: 'pointer',
+                          }}>
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
               ))}
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={5} style={{ textAlign: 'center', padding: '40px', color: '#9CA3AF' }}>Loading...</td></tr>
-            ) : holidays.length === 0 ? (
-              <tr><td colSpan={5} style={{ textAlign: 'center', padding: '40px', color: '#9CA3AF' }}>No holidays yet</td></tr>
-            ) : holidays.map((h, i) => (
-              <tr key={h.id} style={{ borderBottom: '1px solid #F3F4F6', background: i % 2 === 0 ? 'white' : '#FAFAFA' }}>
-                <td style={{ padding: '12px 16px', fontSize: '13px', fontWeight: '600', color: '#111827' }}>{h.date}</td>
-                <td style={{ padding: '12px 16px', fontSize: '13px', color: '#6B7280' }}>{new Date(h.date).toLocaleDateString('en-MY', { weekday: 'long' })}</td>
-                <td style={{ padding: '12px 16px', fontSize: '13px', color: '#374151' }}>{h.name}</td>
-                <td style={{ padding: '12px 16px', fontSize: '13px', color: '#6B7280' }}>{h.description || '-'}</td>
-                <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                  <button onClick={() => handleDelete(h.id)} style={{ color: '#dc2626', background: 'none', border: 'none', fontSize: '12px', cursor: 'pointer' }}>Delete</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+          </>
+        )}
       </div>
     </div>
   )
