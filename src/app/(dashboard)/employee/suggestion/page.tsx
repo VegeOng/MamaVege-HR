@@ -63,9 +63,9 @@ export default function SuggestionPage() {
   }
 
   const statusStyle = (s: string) => ({
-    unread: { bg: colors.warningBg, color: colors.warningText, label: 'Pending' },
-    read: { bg: colors.infoBg, color: colors.infoText, label: 'Read' },
-    replied: { bg: colors.successBg, color: colors.successText, label: 'Replied' },
+    unread: { bg: colors.successBg, color: colors.successText, label: 'Submitted 已提交' },
+    read: { bg: colors.infoBg, color: colors.infoText, label: 'Read 已查看' },
+    replied: { bg: colors.successBg, color: colors.successText, label: 'Replied 已回复' },
   }[s] || { bg: colors.borderLight, color: colors.textMuted, label: s })
 
   return (
