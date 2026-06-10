@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { MessageSquare, Plus, X, Lock, User, ShieldCheck } from 'lucide-react'
+import { MessageSquare, Plus, X, Lock, User, ShieldCheck, Heart } from 'lucide-react'
 import { colors, radius, shadow, styles, font } from '@/lib/design'
 
 const CATEGORIES = [
@@ -26,6 +26,7 @@ export default function SuggestionPage() {
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(false)
   const [pageLoading, setPageLoading] = useState(true)
+  const [showThanks, setShowThanks] = useState(false)
   const [form, setForm] = useState({ category: '', title: '', content: '', is_anonymous: false })
   const supabase = createClient()
 
@@ -57,6 +58,7 @@ export default function SuggestionPage() {
     setForm({ category: '', title: '', content: '', is_anonymous: false })
     setShowForm(false)
     setLoading(false)
+    setShowThanks(true)
     loadData()
   }
 
@@ -181,6 +183,39 @@ export default function SuggestionPage() {
           })}
         </div>
       </div>
+
+      {/* Thank-you modal */}
+      {showThanks && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 999,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px',
+        }} onClick={() => setShowThanks(false)}>
+          <div style={{
+            background: 'white', borderRadius: radius.lg, width: '100%', maxWidth: '520px',
+            maxHeight: '90vh', overflowY: 'auto', padding: '28px', boxShadow: shadow.cardHover,
+            textAlign: 'center',
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{
+              width: '56px', height: '56px', borderRadius: radius.full, background: colors.successBg,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px',
+            }}>
+              <Heart size={26} color={colors.successText} />
+            </div>
+            <h2 style={{ margin: '0 0 16px', fontSize: font.lg, fontWeight: '800', color: colors.textPrimary }}>
+              Thank You 谢谢您
+            </h2>
+            <p style={{ margin: '0 0 14px', fontSize: font.sm, color: colors.textSecondary, lineHeight: 1.8, textAlign: 'left' }}>
+              感谢您提出宝贵的建议。 公司允许不同的声音，也鼓励大家勇敢表达自己的想法。因为真正让团队成长的，不是永远没有问题，而是有人愿意发现问题、提出问题，并一起寻找解决方案。 每一次善意的提醒，都是推动公司进步的动力；每一份真诚的建议，都是对团队最有价值的贡献。 谢谢您的坦诚与勇气。
+            </p>
+            <p style={{ margin: '0 0 20px', fontSize: font.sm, color: colors.textSecondary, lineHeight: 1.8, textAlign: 'left' }}>
+              Thank you for your valuable suggestion. We welcome different perspectives and encourage everyone to speak up and share their ideas. What truly helps a team grow is not the absence of problems, but the willingness to identify them, raise them, and work together to find solutions. Every constructive reminder is a driving force for improvement, and every sincere suggestion is a valuable contribution to the team's success. Thank you for your honesty, courage, and commitment to making us better.
+            </p>
+            <button onClick={() => setShowThanks(false)} style={{ ...styles.primaryButton }}>
+              Close 关闭
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
