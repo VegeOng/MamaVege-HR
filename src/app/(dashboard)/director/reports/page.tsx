@@ -39,7 +39,7 @@ export default function DirectorReportsPage() {
       supabase.from('profiles').select('id, department, basic_salary').eq('is_active', true),
       supabase.from('attendance').select('status').gte('date', monthStart).lte('date', monthEnd),
       supabase.from('leave_requests').select('leave_type:leave_types(name), total_hours, start_date, status').eq('status', 'approved').gte('start_date', monthStart).lte('start_date', monthEnd),
-      supabase.from('ot_requests').select('hours, start_time, end_time, ot_date, status').eq('status', 'approved').gte('ot_date', monthStart).lte('ot_date', monthEnd),
+      supabase.from('ot_requests').select('total_hours, date, status').eq('status', 'approved').gte('date', monthStart).lte('date', monthEnd),
       supabase.from('claims').select('amount, status, claim_type_id, month, year').eq('status', 'approved').eq('month', mon).eq('year', year),
       supabase.from('claim_types').select('id, name'),
     ])
@@ -84,14 +84,7 @@ export default function DirectorReportsPage() {
     // OT hours
     let hours = 0
     for (const o of otRes.data || []) {
-      if (o.hours) {
-        hours += parseFloat(o.hours)
-      } else if (o.start_time && o.end_time) {
-        const [sh, sm] = o.start_time.split(':').map(Number)
-        const [eh, em] = o.end_time.split(':').map(Number)
-        const diff = ((eh * 60 + em) - (sh * 60 + sm)) / 60
-        if (diff > 0) hours += diff
-      }
+      hours += parseFloat(o.total_hours || 0)
     }
     setOtHours(hours)
 

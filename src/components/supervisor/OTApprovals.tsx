@@ -54,10 +54,9 @@ export default function OTApprovals() {
 
   async function handleAction(id: string, status: 'approved' | 'rejected') {
     setActionLoading(id)
-    const { data: { user } } = await supabase.auth.getUser()
     const { error } = await supabase
       .from('ot_requests')
-      .update({ status, approved_by: user?.id, approved_at: new Date().toISOString() })
+      .update({ status, supervisor_approved_at: new Date().toISOString() })
       .eq('id', id)
 
     if (error) showToast('Failed to update', 'error')
@@ -108,13 +107,7 @@ export default function OTApprovals() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {requests.map(r => {
-            let hours = '—'
-            if (r.start_time && r.end_time) {
-              const [sh, sm] = r.start_time.split(':').map(Number)
-              const [eh, em] = r.end_time.split(':').map(Number)
-              const diff = ((eh * 60 + em) - (sh * 60 + sm)) / 60
-              hours = diff > 0 ? `${diff.toFixed(1)}h` : '—'
-            }
+            const hours = r.total_hours ? `${parseFloat(r.total_hours).toFixed(1)}h` : '—'
             const initials = (r.profiles?.full_name || 'U').split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
             return (
               <div key={r.id} style={{ ...styles.card, padding: '16px 20px' }}>
@@ -135,8 +128,8 @@ export default function OTApprovals() {
                       </div>
                       <p style={{ margin: '4px 0 0', fontSize: font.sm, color: colors.textSecondary }}>{r.reason || 'No reason provided'}</p>
                       <div style={{ display: 'flex', gap: '12px', marginTop: '6px', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: font.xs, color: colors.textMuted }}>{r.ot_date}</span>
-                        <span style={{ fontSize: font.xs, color: colors.textMuted }}>{r.start_time} – {r.end_time}</span>
+                        <span style={{ fontSize: font.xs, color: colors.textMuted }}>{r.date}</span>
+                        <span style={{ fontSize: font.xs, color: colors.textMuted }}>{r.start_time?.slice(0,5)} – {r.end_time?.slice(0,5)}</span>
                         <span style={{ fontSize: font.xs, fontWeight: '700', color: colors.info }}>{hours}</span>
                       </div>
                     </div>
