@@ -3,15 +3,67 @@
 @tailwind utilities;
 
 :root {
-  --green: #2D6A4F;
-  --green-light: #52B788;
-  --green-pale: #D8F3DC;
+  --primary: #1B4332;
+  --primary-mid: #2D6A4F;
+  --primary-light: #52B788;
+  --page-bg: #F8FAFC;
+  --card-bg: #FFFFFF;
+  --sidebar-bg: #0F172A;
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  --text-muted: #94A3B8;
+  --border: #E2E8F0;
+  --border-light: #F1F5F9;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+  background: var(--page-bg);
+  color: var(--text-primary);
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
 }
 
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+
+/* Smooth nav hover */
+a { transition: opacity 0.15s, background 0.15s; }
+button { transition: background 0.15s, opacity 0.15s, transform 0.1s; }
+button:active { transform: scale(0.98); }
+
+/* Logo on dark sidebar — remove white bg */
+.sidebar-logo {
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));
+}
+
+/* Card hover lift */
+.card-hover:hover {
+  box-shadow: 0 4px 20px rgba(0,0,0,0.10);
+  transform: translateY(-1px);
+  transition: all 0.2s;
+}
+
+/* Action card hover */
+.action-card:hover {
+  opacity: 0.92;
+  transform: translateY(-2px);
+  transition: all 0.2s;
+}
+
+/* Status badges */
+.badge-approved { background: #DCFCE7; color: #15803D; }
+.badge-pending  { background: #FEF3C7; color: #92400E; }
+.badge-rejected { background: #FEE2E2; color: #DC2626; }
+
+/* Watermark */
 .watermark {
   position: fixed;
   top: 50%;
