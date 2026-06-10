@@ -25,6 +25,7 @@ export default function EditEmployeePage() {
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [departments, setDepartments] = useState<any[]>([])
+  const [supervisors, setSupervisors] = useState<any[]>([])
   const [form, setForm] = useState<any>({})
   const router = useRouter()
   const supabase = createClient()
@@ -32,12 +33,14 @@ export default function EditEmployeePage() {
   useEffect(() => { loadData() }, [id])
 
   async function loadData() {
-    const [{ data: profile }, { data: depts }] = await Promise.all([
+    const [{ data: profile }, { data: depts }, { data: sups }] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', id).single(),
       supabase.from('departments').select('*').order('name'),
+      supabase.from('profiles').select('id, full_name, employee_id, role').in('role', ['supervisor', 'hr']).eq('is_active', true).order('full_name'),
     ])
     if (profile) setForm(profile)
     setDepartments(depts || [])
+    setSupervisors((sups || []).filter((s: any) => s.id !== id))
     setLoading(false)
   }
 
@@ -57,6 +60,7 @@ export default function EditEmployeePage() {
       join_date: form.join_date,
       shift: form.shift,
       clock_in_method: form.clock_in_method,
+      supervisor_id: form.supervisor_id || null,
       basic_salary: parseFloat(form.basic_salary) || 0,
       epf_number: form.epf_number,
       socso_number: form.socso_number,
@@ -159,6 +163,13 @@ export default function EditEmployeePage() {
                 <option value="wifi">WiFi (Office Staff)</option>
                 <option value="gps">GPS (Field Staff)</option>
                 <option value="both">Both</option>
+              </select>
+            </div>
+            <div>
+              <Label>Reports To 直属主管</Label>
+              <select value={form.supervisor_id || ''} onChange={e => f('supervisor_id', e.target.value)} style={inputStyle}>
+                <option value="">None</option>
+                {supervisors.map(s => <option key={s.id} value={s.id}>{s.full_name} ({s.employee_id})</option>)}
               </select>
             </div>
           </div>

@@ -62,8 +62,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   ]
 
   const supervisorItems = [
-    { href: '/supervisor/dashboard', label: 'OT Approvals', icon: <CheckSquare size={15} /> },
-    { href: '/supervisor/attendance', label: 'Team Attendance', icon: <Users size={15} /> },
+    { href: '/supervisor/dashboard', label: 'Team Management', icon: <CheckSquare size={15} /> },
   ]
 
   const hrItems = [

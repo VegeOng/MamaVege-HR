@@ -22,13 +22,14 @@ const Section = ({ title, children }: { title: string; children: React.ReactNode
 export default function NewEmployeePage() {
   const [loading, setLoading] = useState(false)
   const [departments, setDepartments] = useState<any[]>([])
+  const [supervisors, setSupervisors] = useState<any[]>([])
   const [offerFile, setOfferFile] = useState<File | null>(null)
   const [icFile, setIcFile] = useState<File | null>(null)
   const [form, setForm] = useState({
     full_name: '', email: '', phone: '', whatsapp_number: '',
     ic_number: '', ic_type: 'nric',
     department: '', position: '', role: 'employee',
-    join_date: '', shift: 'A', clock_in_method: 'wifi',
+    join_date: '', shift: 'A', clock_in_method: 'wifi', supervisor_id: '',
     basic_salary: '', epf_number: '', socso_number: '', tax_number: '',
     bank_name: '', bank_account: '',
     annual_leave_days: '12', medical_leave_days: '14', emergency_leave_days: '3',
@@ -38,6 +39,8 @@ export default function NewEmployeePage() {
 
   useEffect(() => {
     supabase.from('departments').select('*').order('name').then(({ data }) => setDepartments(data || []))
+    supabase.from('profiles').select('id, full_name, employee_id, role').in('role', ['supervisor', 'hr']).eq('is_active', true).order('full_name')
+      .then(({ data }) => setSupervisors(data || []))
   }, [])
 
   const f = (key: string, val: string) => setForm(prev => ({ ...prev, [key]: val }))
@@ -81,6 +84,7 @@ export default function NewEmployeePage() {
         ic_number: form.ic_number, ic_type: form.ic_type,
         department: form.department, position: form.position, role: form.role,
         join_date: form.join_date, shift: form.shift, clock_in_method: form.clock_in_method,
+        supervisor_id: form.supervisor_id || null,
         basic_salary: parseFloat(form.basic_salary) || 0,
         epf_number: form.epf_number, socso_number: form.socso_number, tax_number: form.tax_number,
         bank_name: form.bank_name, bank_account: form.bank_account, is_active: true,
@@ -206,6 +210,13 @@ export default function NewEmployeePage() {
                 <option value="wifi">WiFi (Office Staff)</option>
                 <option value="gps">GPS (Field Staff)</option>
                 <option value="both">Both</option>
+              </select>
+            </div>
+            <div>
+              <Label>Reports To 直属主管</Label>
+              <select value={form.supervisor_id} onChange={e => f('supervisor_id', e.target.value)} style={selectStyle}>
+                <option value="">None</option>
+                {supervisors.map(s => <option key={s.id} value={s.id}>{s.full_name} ({s.employee_id})</option>)}
               </select>
             </div>
           </div>
