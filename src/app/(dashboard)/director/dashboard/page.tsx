@@ -20,7 +20,7 @@ export default function DirectorDashboard() {
         supabase.from('attendance').select('*', { count: 'exact', head: true }).eq('date', today).in('status', ['present', 'late']),
         supabase.from('attendance').select('*', { count: 'exact', head: true }).eq('date', today).eq('status', 'absent'),
         supabase.from('leave_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-        supabase.from('profiles').select('basic_salary').eq('is_active', true).neq('role', 'director'),
+        supabase.from('profiles').select('basic_salary').eq('is_active', true),
         supabase.from('suggestions').select('*', { count: 'exact', head: true }).eq('status', 'new'),
       ])
       setStats({ employees: emp || 0, present: present || 0, absent: absent || 0, pendingLeaves: leaves || 0 })

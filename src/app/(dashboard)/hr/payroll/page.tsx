@@ -21,7 +21,7 @@ export default function HRPayrollPage() {
     setLoading(true)
     const [empRes, settingsRes] = await Promise.all([
       supabase.from('profiles').select('id, full_name, employee_id, department, position, basic_salary, bank_account, bank_name')
-        .eq('is_active', true).neq('role', 'director').order('employee_id'),
+        .eq('is_active', true).order('employee_id'),
       supabase.from('company_settings').select('key, value').in('key', ['epf_employee_rate', 'socso_employee_rate', 'eis_rate']),
     ])
     setEmployees(empRes.data || [])
