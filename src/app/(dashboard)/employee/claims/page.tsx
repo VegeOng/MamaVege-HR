@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Plus, Upload, X, Paperclip } from 'lucide-react'
 import { colors, radius, shadow, styles, font } from '@/lib/design'
+import { generateWhatsAppLink } from '@/lib/utils'
 
 function Field({ label, children }: { label: string, children: React.ReactNode }) {
   return (
@@ -34,6 +35,7 @@ export default function EmployeeClaimsPage() {
   const [submitting, setSubmitting] = useState(false)
   const [msg, setMsg] = useState<{ type: 'success' | 'error', text: string } | null>(null)
   const [receipt, setReceipt] = useState<File | null>(null)
+  const [hrSettings, setHrSettings] = useState<any>({})
   const fileRef = useRef<HTMLInputElement>(null)
   const [form, setForm] = useState({
     claim_type_id: '55188c14-0a0c-482f-b6d8-c99754b05379',
@@ -56,14 +58,19 @@ export default function EmployeeClaimsPage() {
     const curMonth = now.getMonth() + 1
     const curYear = now.getFullYear()
 
-    const [profileRes, claimsRes, limitsRes] = await Promise.all([
+    const [profileRes, claimsRes, limitsRes, settingsRes] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', user.id).single(),
       supabase.from('claims').select('*, claim_type:claim_types(name)').eq('employee_id', user.id).order('created_at', { ascending: false }),
       supabase.from('claim_limits').select('*').eq('employee_id', user.id),
+      supabase.from('company_settings').select('*'),
     ])
 
     setProfile(profileRes.data)
     setClaims(claimsRes.data || [])
+
+    const settings: any = {}
+    settingsRes.data?.forEach((s: any) => { settings[s.key] = s.value })
+    setHrSettings(settings)
 
     // Build limits map
     const limitsMap: Record<string, number> = {}
@@ -136,6 +143,12 @@ export default function EmployeeClaimsPage() {
     if (error) {
       setMsg({ type: 'error', text: 'Failed to submit. Please try again.' })
     } else {
+      const ct = CLAIM_TYPES.find(t => t.id === form.claim_type_id)
+      const msgText = `Hi, ${profile?.full_name} has submitted a ${ct?.label.split(' ')[0]} claim of RM ${amt.toFixed(2)}. Please review in MamaVege HR system.`
+      if (hrSettings.hr_whatsapp) {
+        window.open(generateWhatsAppLink(hrSettings.hr_whatsapp, msgText), '_blank')
+      }
+
       setMsg({ type: 'success', text: 'Claim submitted successfully!' })
       setForm({ claim_type_id: '55188c14-0a0c-482f-b6d8-c99754b05379', amount: '', description: '', date: new Date().toISOString().split('T')[0] })
       setReceipt(null)

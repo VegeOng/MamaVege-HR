@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Check, X, FileText, Clock, CheckCircle2, XCircle, ListFilter, CalendarDays } from 'lucide-react'
 import { colors, radius, shadow, styles, font } from '@/lib/design'
+import { formatDate, generateWhatsAppLink } from '@/lib/utils'
 
 const FILTERS = [
   { id: 'pending', label: 'Pending', icon: <Clock size={13} /> },
@@ -41,11 +42,20 @@ export default function HRLeavePage() {
 
   async function loadData() {
     setLoading(true)
-    let q = supabase.from('leave_requests').select('*, profiles(full_name, employee_id, department)').order('created_at', { ascending: false })
+    let q = supabase.from('leave_requests').select('*, profiles(full_name, employee_id, department, whatsapp_number)').order('created_at', { ascending: false })
     if (filter !== 'all') q = q.eq('status', filter)
     const { data } = await q
     setRequests(data || [])
     setLoading(false)
+  }
+
+  function notifyEmployee(r: any, status: 'approved' | 'rejected', note?: string) {
+    const phone = r.profiles?.whatsapp_number
+    if (!phone) return
+    const type = leaveTypes[r.leave_type_id]?.name || 'Leave'
+    let msgText = `Hi ${r.profiles?.full_name}, your ${type} request (${formatDate(r.start_date)}${r.end_date !== r.start_date ? ` - ${formatDate(r.end_date)}` : ''}) has been ${status === 'approved' ? 'APPROVED ✅' : 'REJECTED ❌'}.`
+    if (status === 'rejected' && note) msgText += ` Reason: ${note}`
+    window.open(generateWhatsAppLink(phone, msgText), '_blank')
   }
 
   async function handleApprove(r: any) {
@@ -63,17 +73,19 @@ export default function HRLeavePage() {
       await supabase.from('leave_entitlements').update({ used_hours: (ent.used_hours || 0) + (r.total_hours || 0) }).eq('id', ent.id)
     }
 
+    notifyEmployee(r, 'approved')
     await loadData()
     setActingId(null)
   }
 
-  async function handleReject(id: string) {
-    setActingId(id)
+  async function handleReject(r: any) {
+    setActingId(r.id)
     const { data: { user } } = await supabase.auth.getUser()
     await supabase.from('leave_requests').update({
       status: 'rejected', reviewed_by: user?.id, reviewed_at: new Date().toISOString(),
       reviewer_notes: rejectNote || null,
-    }).eq('id', id)
+    }).eq('id', r.id)
+    notifyEmployee(r, 'rejected', rejectNote)
     await loadData()
     setActingId(null); setRejectingId(null); setRejectNote('')
   }
@@ -205,7 +217,7 @@ export default function HRLeavePage() {
                             />
                             <div style={{ display: 'flex', gap: '6px' }}>
                               <button onClick={() => { setRejectingId(null); setRejectNote('') }} style={{ padding: '5px 10px', background: colors.borderLight, color: colors.textMuted, border: 'none', borderRadius: radius.sm, fontSize: '12px', cursor: 'pointer', fontWeight: '600' }}>Cancel</button>
-                              <button onClick={() => handleReject(r.id)} disabled={actingId === r.id} style={{ padding: '5px 12px', background: colors.danger, color: 'white', border: 'none', borderRadius: radius.sm, fontSize: '12px', cursor: 'pointer', fontWeight: '600' }}>
+                              <button onClick={() => handleReject(r)} disabled={actingId === r.id} style={{ padding: '5px 12px', background: colors.danger, color: 'white', border: 'none', borderRadius: radius.sm, fontSize: '12px', cursor: 'pointer', fontWeight: '600' }}>
                                 {actingId === r.id ? '...' : 'Confirm Reject'}
                               </button>
                             </div>

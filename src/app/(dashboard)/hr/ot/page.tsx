@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Check, X, Timer, Clock, CheckCircle2, XCircle, ListFilter } from 'lucide-react'
 import { colors, radius, shadow, styles, font } from '@/lib/design'
+import { generateWhatsAppLink } from '@/lib/utils'
 
 const FILTERS = [
   { id: 'pending', label: 'Pending', icon: <Clock size={13} /> },
@@ -24,31 +25,41 @@ export default function HROTPage() {
 
   async function loadData() {
     setLoading(true)
-    let q = supabase.from('ot_requests').select('*, profiles(full_name, employee_id, department), supervisor:profiles!ot_requests_supervisor_id_fkey(full_name)').order('created_at', { ascending: false })
+    let q = supabase.from('ot_requests').select('*, profiles(full_name, employee_id, department, whatsapp_number), supervisor:profiles!ot_requests_supervisor_id_fkey(full_name)').order('created_at', { ascending: false })
     if (filter !== 'all') q = q.eq('status', filter)
     const { data } = await q
     setRequests(data || [])
     setLoading(false)
   }
 
-  async function handleApprove(id: string) {
-    setActingId(id)
+  function notifyEmployee(r: any, status: 'approved' | 'rejected', note?: string) {
+    const phone = r.profiles?.whatsapp_number
+    if (!phone) return
+    let msgText = `Hi ${r.profiles?.full_name}, your OT request on ${fmtDate(r.date)} (${r.total_hours?.toFixed?.(1) || r.total_hours}h) has been ${status === 'approved' ? 'APPROVED ✅' : 'REJECTED ❌'}.`
+    if (status === 'rejected' && note) msgText += ` Reason: ${note}`
+    window.open(generateWhatsAppLink(phone, msgText), '_blank')
+  }
+
+  async function handleApprove(r: any) {
+    setActingId(r.id)
     const { data: { user } } = await supabase.auth.getUser()
     await supabase.from('ot_requests').update({
       status: 'approved', hr_noted_by: user?.id, hr_noted_at: new Date().toISOString(),
       supervisor_approved_at: new Date().toISOString(),
-    }).eq('id', id)
+    }).eq('id', r.id)
+    notifyEmployee(r, 'approved')
     await loadData()
     setActingId(null)
   }
 
-  async function handleReject(id: string) {
-    setActingId(id)
+  async function handleReject(r: any) {
+    setActingId(r.id)
     const { data: { user } } = await supabase.auth.getUser()
     await supabase.from('ot_requests').update({
       status: 'rejected', hr_noted_by: user?.id, hr_noted_at: new Date().toISOString(),
       supervisor_notes: rejectNote || null,
-    }).eq('id', id)
+    }).eq('id', r.id)
+    notifyEmployee(r, 'rejected', rejectNote)
     await loadData()
     setActingId(null); setRejectingId(null); setRejectNote('')
   }
@@ -162,7 +173,7 @@ export default function HROTPage() {
                             />
                             <div style={{ display: 'flex', gap: '6px' }}>
                               <button onClick={() => { setRejectingId(null); setRejectNote('') }} style={{ padding: '5px 10px', background: colors.borderLight, color: colors.textMuted, border: 'none', borderRadius: radius.sm, fontSize: '12px', cursor: 'pointer', fontWeight: '600' }}>Cancel</button>
-                              <button onClick={() => handleReject(r.id)} disabled={actingId === r.id} style={{ padding: '5px 12px', background: colors.danger, color: 'white', border: 'none', borderRadius: radius.sm, fontSize: '12px', cursor: 'pointer', fontWeight: '600' }}>
+                              <button onClick={() => handleReject(r)} disabled={actingId === r.id} style={{ padding: '5px 12px', background: colors.danger, color: 'white', border: 'none', borderRadius: radius.sm, fontSize: '12px', cursor: 'pointer', fontWeight: '600' }}>
                                 {actingId === r.id ? '...' : 'Confirm Reject'}
                               </button>
                             </div>
@@ -172,7 +183,7 @@ export default function HROTPage() {
                             <button onClick={() => setRejectingId(r.id)} disabled={actingId === r.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 14px', background: colors.dangerBg, color: colors.dangerText, border: 'none', borderRadius: radius.sm, fontSize: '12px', cursor: 'pointer', fontWeight: '700' }}>
                               <X size={12} />Reject
                             </button>
-                            <button onClick={() => handleApprove(r.id)} disabled={actingId === r.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 14px', background: colors.success, color: 'white', border: 'none', borderRadius: radius.sm, fontSize: '12px', cursor: 'pointer', fontWeight: '700' }}>
+                            <button onClick={() => handleApprove(r)} disabled={actingId === r.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 14px', background: colors.success, color: 'white', border: 'none', borderRadius: radius.sm, fontSize: '12px', cursor: 'pointer', fontWeight: '700' }}>
                               <Check size={12} />{actingId === r.id ? '...' : 'Approve'}
                             </button>
                           </div>

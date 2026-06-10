@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Check, X, FileText, Clock, CheckCircle2, XCircle, ListFilter } from 'lucide-react'
 import { colors, radius, shadow, styles, font } from '@/lib/design'
+import { generateWhatsAppLink } from '@/lib/utils'
 
 const TYPE_COLORS: Record<string, string> = {
   PETROL: colors.gradients.orange,
@@ -42,30 +43,41 @@ export default function HRClaimsPage() {
 
   async function loadData() {
     setLoading(true)
-    let q = supabase.from('claims').select('*, profiles(full_name, employee_id, department)').order('created_at', { ascending: false })
+    let q = supabase.from('claims').select('*, profiles(full_name, employee_id, department, whatsapp_number)').order('created_at', { ascending: false })
     if (filter !== 'all') q = q.eq('status', filter)
     const { data } = await q
     setClaims(data || [])
     setLoading(false)
   }
 
-  async function handleApprove(id: string) {
-    setActingId(id)
+  function notifyEmployee(c: any, status: 'approved' | 'rejected', note?: string) {
+    const phone = c.profiles?.whatsapp_number
+    if (!phone) return
+    const type = claimTypes[c.claim_type_id]?.name || 'Claim'
+    let msgText = `Hi ${c.profiles?.full_name}, your ${type} claim of RM ${parseFloat(c.amount || 0).toFixed(2)} has been ${status === 'approved' ? 'APPROVED ✅' : 'REJECTED ❌'}.`
+    if (status === 'rejected' && note) msgText += ` Reason: ${note}`
+    window.open(generateWhatsAppLink(phone, msgText), '_blank')
+  }
+
+  async function handleApprove(c: any) {
+    setActingId(c.id)
     const { data: { user } } = await supabase.auth.getUser()
     await supabase.from('claims').update({
       status: 'approved', reviewed_by: user?.id, reviewed_at: new Date().toISOString(),
-    }).eq('id', id)
+    }).eq('id', c.id)
+    notifyEmployee(c, 'approved')
     await loadData()
     setActingId(null)
   }
 
-  async function handleReject(id: string) {
-    setActingId(id)
+  async function handleReject(c: any) {
+    setActingId(c.id)
     const { data: { user } } = await supabase.auth.getUser()
     await supabase.from('claims').update({
       status: 'rejected', reviewed_by: user?.id, reviewed_at: new Date().toISOString(),
       reviewer_notes: rejectNote || null,
-    }).eq('id', id)
+    }).eq('id', c.id)
+    notifyEmployee(c, 'rejected', rejectNote)
     await loadData()
     setActingId(null); setRejectingId(null); setRejectNote('')
   }
@@ -187,7 +199,7 @@ export default function HRClaimsPage() {
                             />
                             <div style={{ display: 'flex', gap: '6px' }}>
                               <button onClick={() => { setRejectingId(null); setRejectNote('') }} style={{ padding: '5px 10px', background: colors.borderLight, color: colors.textMuted, border: 'none', borderRadius: radius.sm, fontSize: '12px', cursor: 'pointer', fontWeight: '600' }}>Cancel</button>
-                              <button onClick={() => handleReject(c.id)} disabled={actingId === c.id} style={{ padding: '5px 12px', background: colors.danger, color: 'white', border: 'none', borderRadius: radius.sm, fontSize: '12px', cursor: 'pointer', fontWeight: '600' }}>
+                              <button onClick={() => handleReject(c)} disabled={actingId === c.id} style={{ padding: '5px 12px', background: colors.danger, color: 'white', border: 'none', borderRadius: radius.sm, fontSize: '12px', cursor: 'pointer', fontWeight: '600' }}>
                                 {actingId === c.id ? '...' : 'Confirm Reject'}
                               </button>
                             </div>
@@ -197,7 +209,7 @@ export default function HRClaimsPage() {
                             <button onClick={() => setRejectingId(c.id)} disabled={actingId === c.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 14px', background: colors.dangerBg, color: colors.dangerText, border: 'none', borderRadius: radius.sm, fontSize: '12px', cursor: 'pointer', fontWeight: '700' }}>
                               <X size={12} />Reject
                             </button>
-                            <button onClick={() => handleApprove(c.id)} disabled={actingId === c.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 14px', background: colors.success, color: 'white', border: 'none', borderRadius: radius.sm, fontSize: '12px', cursor: 'pointer', fontWeight: '700' }}>
+                            <button onClick={() => handleApprove(c)} disabled={actingId === c.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 14px', background: colors.success, color: 'white', border: 'none', borderRadius: radius.sm, fontSize: '12px', cursor: 'pointer', fontWeight: '700' }}>
                               <Check size={12} />{actingId === c.id ? '...' : 'Approve'}
                             </button>
                           </div>
