@@ -1,8 +1,9 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Users, Wallet, Banknote, Search } from 'lucide-react'
+import { Users, Wallet, Banknote, Search, MessageCircle } from 'lucide-react'
 import { colors, radius, shadow, styles, font } from '@/lib/design'
+import { generateWhatsAppLink } from '@/lib/utils'
 
 export default function HRPayrollPage() {
   const [employees, setEmployees] = useState<any[]>([])
@@ -20,7 +21,7 @@ export default function HRPayrollPage() {
   async function loadData() {
     setLoading(true)
     const [empRes, settingsRes] = await Promise.all([
-      supabase.from('profiles').select('id, full_name, employee_id, department, position, basic_salary, bank_account, bank_name')
+      supabase.from('profiles').select('id, full_name, employee_id, department, position, basic_salary, bank_account, bank_name, whatsapp_number')
         .eq('is_active', true).order('employee_id'),
       supabase.from('company_settings').select('key, value').in('key', ['epf_employee_rate', 'socso_employee_rate', 'eis_rate']),
     ])
@@ -41,6 +42,14 @@ export default function HRPayrollPage() {
     const eis = Math.min(salary, 4000) * (rates.eis / 100)
     const deductions = epf + socso + eis
     return { epf, socso, eis, deductions, net: salary - deductions }
+  }
+
+  function notifyPayslip(e: any) {
+    const phone = e.whatsapp_number
+    if (!phone) return
+    const c = calc(e.basic_salary || 0)
+    const msgText = `Hi ${e.full_name}, your payslip for ${monthLabel} is ready. Net pay: RM ${c.net.toFixed(2)}. Please check the MamaVege HR system for details.`
+    window.open(generateWhatsAppLink(phone, msgText), '_blank')
   }
 
   const filtered = employees.filter(e =>
@@ -113,16 +122,16 @@ export default function HRPayrollPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: colors.pageBg, borderBottom: `1px solid ${colors.borderLight}` }}>
-                  {['Employee', 'Department', 'Basic Salary', `EPF (${rates.epf}%)`, `SOCSO (${rates.socso}%)`, `EIS (${rates.eis}%)`, 'Net Pay', 'Bank'].map(h => (
+                  {['Employee', 'Department', 'Basic Salary', `EPF (${rates.epf}%)`, `SOCSO (${rates.socso}%)`, `EIS (${rates.eis}%)`, 'Net Pay', 'Bank', ''].map(h => (
                     <th key={h} style={{ padding: '12px 16px', textAlign: 'left', fontSize: font.xs, fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: colors.textMuted }}>Loading...</td></tr>
+                  <tr><td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: colors.textMuted }}>Loading...</td></tr>
                 ) : filtered.length === 0 ? (
-                  <tr><td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: colors.textMuted }}>No employees found</td></tr>
+                  <tr><td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: colors.textMuted }}>No employees found</td></tr>
                 ) : filtered.map(e => {
                   const c = calc(e.basic_salary || 0)
                   return (
@@ -140,6 +149,18 @@ export default function HRPayrollPage() {
                       <td style={{ padding: '12px 16px', fontSize: font.sm, color: colors.textSecondary }}>
                         {e.bank_name || '-'}<br />
                         <span style={{ fontSize: font.xs, color: colors.textMuted }}>{e.bank_account || '-'}</span>
+                      </td>
+                      <td style={{ padding: '12px 16px' }}>
+                        <button onClick={() => notifyPayslip(e)} disabled={!e.whatsapp_number} title={e.whatsapp_number ? 'Notify via WhatsApp' : 'No WhatsApp number on file'}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 12px',
+                            background: e.whatsapp_number ? colors.successBg : colors.borderLight,
+                            color: e.whatsapp_number ? colors.successText : colors.textMuted,
+                            border: 'none', borderRadius: radius.sm, fontSize: '12px', fontWeight: '700',
+                            cursor: e.whatsapp_number ? 'pointer' : 'not-allowed', whiteSpace: 'nowrap',
+                          }}>
+                          <MessageCircle size={12} />Notify
+                        </button>
                       </td>
                     </tr>
                   )

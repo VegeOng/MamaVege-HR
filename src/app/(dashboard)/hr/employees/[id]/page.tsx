@@ -1,10 +1,11 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { ArrowLeft, Save, Trash2 } from 'lucide-react'
+import { ArrowLeft, Save, Trash2, MessageCircle } from 'lucide-react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { colors, radius, styles, font } from '@/lib/design'
+import { generateWhatsAppLink } from '@/lib/utils'
 
 const Label = ({ children, required }: { children: React.ReactNode; required?: boolean }) => (
   <label style={{ display: 'block', fontSize: font.xs, fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '6px' }}>
@@ -26,6 +27,7 @@ export default function EditEmployeePage() {
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [departments, setDepartments] = useState<any[]>([])
   const [supervisors, setSupervisors] = useState<any[]>([])
+  const [balances, setBalances] = useState<any[]>([])
   const [form, setForm] = useState<any>({})
   const router = useRouter()
   const supabase = createClient()
@@ -33,15 +35,31 @@ export default function EditEmployeePage() {
   useEffect(() => { loadData() }, [id])
 
   async function loadData() {
-    const [{ data: profile }, { data: depts }, { data: sups }] = await Promise.all([
+    const [{ data: profile }, { data: depts }, { data: sups }, { data: bal }] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', id).single(),
       supabase.from('departments').select('*').order('name'),
       supabase.from('profiles').select('id, full_name, employee_id, role').in('role', ['supervisor', 'hr']).eq('is_active', true).order('full_name'),
+      supabase.from('leave_entitlements').select('*, leave_type:leave_types(name, code)').eq('employee_id', id).eq('year', new Date().getFullYear()),
     ])
     if (profile) setForm(profile)
     setDepartments(depts || [])
     setSupervisors((sups || []).filter((s: any) => s.id !== id))
+    setBalances(bal || [])
     setLoading(false)
+  }
+
+  function notifyLeaveBalance() {
+    const phone = form.whatsapp_number
+    if (!phone) return
+    const year = new Date().getFullYear()
+    const lines = balances
+      .filter(b => b.leave_type?.code !== 'PH')
+      .map(b => {
+        const remaining = ((b.entitled_hours || 0) + (b.carried_forward_hours || 0) - (b.used_hours || 0)) / 8
+        return `${b.leave_type?.name}: ${remaining % 1 === 0 ? remaining.toFixed(0) : remaining.toFixed(1)} day(s)`
+      })
+    const msgText = `Hi ${form.full_name}, here is your leave balance for ${year}:\n${lines.join('\n')}\n\nCheck the MamaVege HR system for more details.`
+    window.open(generateWhatsAppLink(phone, msgText), '_blank')
   }
 
   const f = (key: string, val: string) => setForm((prev: any) => ({ ...prev, [key]: val }))
@@ -159,6 +177,36 @@ export default function EditEmployeePage() {
             <div><Label>IC / Permit Number</Label><input value={form.ic_number || ''} onChange={e => f('ic_number', e.target.value)} style={inputStyle} /></div>
           </div>
         </Section>
+
+        {/* Leave Balance */}
+        {balances.length > 0 && (
+          <div style={{ ...styles.card, marginBottom: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', paddingBottom: '12px', borderBottom: `1px solid ${colors.borderLight}` }}>
+              <h3 style={{ fontSize: font.base, fontWeight: '700', color: colors.textPrimary, margin: 0 }}>Leave Balance 假期余额 ({new Date().getFullYear()})</h3>
+              <button onClick={notifyLeaveBalance} disabled={!form.whatsapp_number} title={form.whatsapp_number ? 'Notify via WhatsApp' : 'No WhatsApp number on file'}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px',
+                  background: form.whatsapp_number ? colors.successBg : colors.borderLight,
+                  color: form.whatsapp_number ? colors.successText : colors.textMuted,
+                  border: 'none', borderRadius: radius.sm, fontSize: '12px', fontWeight: '700',
+                  cursor: form.whatsapp_number ? 'pointer' : 'not-allowed',
+                }}>
+                <MessageCircle size={13} />Notify Balance
+              </button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '12px' }}>
+              {balances.filter(b => b.leave_type?.code !== 'PH').map(b => {
+                const remaining = ((b.entitled_hours || 0) + (b.carried_forward_hours || 0) - (b.used_hours || 0)) / 8
+                return (
+                  <div key={b.id}>
+                    <p style={{ margin: '0 0 4px', fontSize: font.xs, color: colors.textMuted, fontWeight: '600' }}>{b.leave_type?.name}</p>
+                    <p style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: colors.textPrimary }}>{remaining % 1 === 0 ? remaining.toFixed(0) : remaining.toFixed(1)} <span style={{ fontSize: font.xs, fontWeight: '600', color: colors.textMuted }}>days</span></p>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Employment */}
         <Section title="Employment Details 工作资料">
