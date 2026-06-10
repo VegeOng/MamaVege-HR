@@ -60,29 +60,37 @@ export default function EditEmployeePage() {
       isActive = true
     }
 
-    const { error } = await supabase.from('profiles').update({
-      full_name: form.full_name,
-      employee_id: employeeId,
-      phone: form.phone,
-      whatsapp_number: form.whatsapp_number,
-      ic_number: form.ic_number,
-      ic_type: form.ic_type,
-      department: form.department,
-      position: form.position,
-      role: form.role,
-      join_date: form.join_date,
-      shift: form.shift,
-      clock_in_method: form.clock_in_method,
-      supervisor_id: form.supervisor_id || null,
-      basic_salary: parseFloat(form.basic_salary) || 0,
-      epf_number: form.epf_number,
-      socso_number: form.socso_number,
-      tax_number: form.tax_number,
-      bank_name: form.bank_name,
-      bank_account: form.bank_account,
-      is_active: isActive,
-    }).eq('id', id)
-    if (error) setMsg({ type: 'error', text: error.message })
+    const res = await fetch('/api/admin/update-profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id,
+        updates: {
+          full_name: form.full_name,
+          employee_id: employeeId,
+          phone: form.phone,
+          whatsapp_number: form.whatsapp_number,
+          ic_number: form.ic_number,
+          ic_type: form.ic_type,
+          department: form.department,
+          position: form.position,
+          role: form.role,
+          join_date: form.join_date,
+          shift: form.shift,
+          clock_in_method: form.clock_in_method,
+          supervisor_id: form.supervisor_id || null,
+          basic_salary: parseFloat(form.basic_salary) || 0,
+          epf_number: form.epf_number,
+          socso_number: form.socso_number,
+          tax_number: form.tax_number,
+          bank_name: form.bank_name,
+          bank_account: form.bank_account,
+          is_active: isActive,
+        },
+      }),
+    })
+    const json = await res.json()
+    if (!res.ok) setMsg({ type: 'error', text: json.error || 'Update failed' })
     else { setMsg({ type: 'success', text: 'Employee profile updated!' }); loadData() }
     setSaving(false)
     setTimeout(() => setMsg(null), 3000)
@@ -90,7 +98,11 @@ export default function EditEmployeePage() {
 
   async function handleDeactivate() {
     if (!confirm(`Deactivate ${form.full_name}? They will lose access.`)) return
-    await supabase.from('profiles').update({ is_active: false }).eq('id', id)
+    await fetch('/api/admin/update-profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, updates: { is_active: false } }),
+    })
     router.push('/hr/employees')
   }
 

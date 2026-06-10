@@ -37,7 +37,11 @@ export default function HREmployeesPage() {
 
   async function handleDeactivate(id: string, name: string) {
     if (!confirm(`Deactivate ${name}?`)) return
-    await supabase.from('profiles').update({ is_active: false }).eq('id', id)
+    await fetch('/api/admin/update-profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, updates: { is_active: false } }),
+    })
     loadData()
   }
 
