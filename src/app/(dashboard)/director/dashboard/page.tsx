@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
-import { Users, CheckCircle2, XCircle, CalendarDays, Wallet, MessageSquare, ArrowRight, Sparkles } from 'lucide-react'
+import { Users, CheckCircle2, XCircle, CalendarDays, Wallet, MessageSquare, ArrowRight, Sparkles, FileBarChart } from 'lucide-react'
 import { colors, radius, shadow, styles, font } from '@/lib/design'
 
 export default function DirectorDashboard() {
@@ -41,6 +41,7 @@ export default function DirectorDashboard() {
   const quickLinks = [
     { label: 'Employees 员工', desc: 'View employee directory', href: '/hr/employees', icon: <Users size={18} />, gradient: colors.gradients.indigo },
     { label: 'Payroll 薪资', desc: 'Review monthly payroll', href: '/hr/payroll', icon: <Wallet size={18} />, gradient: colors.gradients.teal },
+    { label: 'Reports 报表', desc: 'Company-wide insights', href: '/director/reports', icon: <FileBarChart size={18} />, gradient: colors.gradients.blue },
     { label: 'Suggestions 建议箱', desc: `${suggestions} new suggestion${suggestions === 1 ? '' : 's'}`, href: '/director/suggestions', icon: <MessageSquare size={18} />, gradient: colors.gradients.pink },
   ]
 
@@ -102,7 +103,7 @@ export default function DirectorDashboard() {
         </div>
 
         {/* Quick links */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '14px', marginBottom: '20px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px', marginBottom: '20px' }}>
           {quickLinks.map(q => (
             <Link key={q.label} href={q.href} style={{ textDecoration: 'none' }}>
               <div style={{ ...styles.card, display: 'flex', alignItems: 'center', gap: '14px', cursor: 'pointer' }}>

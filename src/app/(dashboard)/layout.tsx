@@ -6,7 +6,7 @@ import Link from 'next/link'
 import {
   LayoutDashboard, Clock, CalendarDays, Timer, Briefcase,
   Wallet, FolderOpen, MessageSquare, CheckSquare, Users,
-  BarChart3, Settings, CalendarCheck, LogOut, ChevronRight
+  BarChart3, Settings, CalendarCheck, LogOut, ChevronRight, FileBarChart
 } from 'lucide-react'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -79,6 +79,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const directorItems = [
     { href: '/director/dashboard', label: 'Dashboard', icon: <BarChart3 size={15} /> },
+    { href: '/director/reports', label: 'Reports', icon: <FileBarChart size={15} /> },
     { href: '/director/suggestions', label: 'Suggestions', icon: <MessageSquare size={15} /> },
   ]
 
