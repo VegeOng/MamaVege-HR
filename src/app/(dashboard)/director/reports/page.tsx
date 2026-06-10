@@ -38,7 +38,7 @@ export default function DirectorReportsPage() {
     const [profilesRes, attendanceRes, leaveRes, otRes, claimsRes, claimTypesRes] = await Promise.all([
       supabase.from('profiles').select('id, department, basic_salary').eq('is_active', true),
       supabase.from('attendance').select('status').gte('date', monthStart).lte('date', monthEnd),
-      supabase.from('leave_requests').select('leave_type, total_days, start_date, status').eq('status', 'approved').gte('start_date', monthStart).lte('start_date', monthEnd),
+      supabase.from('leave_requests').select('leave_type:leave_types(name), total_hours, start_date, status').eq('status', 'approved').gte('start_date', monthStart).lte('start_date', monthEnd),
       supabase.from('ot_requests').select('hours, start_time, end_time, ot_date, status').eq('status', 'approved').gte('ot_date', monthStart).lte('ot_date', monthEnd),
       supabase.from('claims').select('amount, status, claim_type_id, month, year').eq('status', 'approved').eq('month', mon).eq('year', year),
       supabase.from('claim_types').select('id, name'),
@@ -74,9 +74,9 @@ export default function DirectorReportsPage() {
     // Leave by type
     const leaveMap: Record<string, { days: number; count: number }> = {}
     for (const l of leaveRes.data || []) {
-      const type = l.leave_type || 'Other'
+      const type = (l.leave_type as any)?.name || 'Other'
       if (!leaveMap[type]) leaveMap[type] = { days: 0, count: 0 }
-      leaveMap[type].days += parseFloat(l.total_days || 0)
+      leaveMap[type].days += parseFloat(l.total_hours || 0) / 8
       leaveMap[type].count += 1
     }
     setLeaveByType(Object.entries(leaveMap).map(([type, v]) => ({ type, ...v })).sort((a, b) => b.days - a.days))
