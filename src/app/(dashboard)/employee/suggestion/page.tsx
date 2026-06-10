@@ -1,30 +1,43 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { MessageSquare, Plus, X, Lock, User } from 'lucide-react'
+import { MessageSquare, Plus, X, Lock, User, ShieldCheck } from 'lucide-react'
+import { colors, radius, shadow, styles, font } from '@/lib/design'
 
 const CATEGORIES = [
-  { value: 'company_operations', label: 'Company Operations  公司运营' },
-  { value: 'teamwork', label: 'Teamwork  团队合作' },
-  { value: 'work_environment', label: 'Work Environment  工作环境' },
-  { value: 'salary_benefits', label: 'Salary & Benefits  薪资福利' },
-  { value: 'others', label: 'Others  其他' },
+  { value: 'company_operations', label: 'Company Operations 公司运营' },
+  { value: 'teamwork', label: 'Teamwork 团队合作' },
+  { value: 'work_environment', label: 'Work Environment 工作环境' },
+  { value: 'salary_benefits', label: 'Salary & Benefits 薪资福利' },
+  { value: 'others', label: 'Others 其他' },
 ]
+
+function Field({ label, children }: { label: string, children: React.ReactNode }) {
+  return (
+    <div>
+      <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: '6px' }}>{label}</label>
+      {children}
+    </div>
+  )
+}
 
 export default function SuggestionPage() {
   const [suggestions, setSuggestions] = useState<any[]>([])
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [pageLoading, setPageLoading] = useState(true)
   const [form, setForm] = useState({ category: '', title: '', content: '', is_anonymous: false })
   const supabase = createClient()
 
   useEffect(() => { loadData() }, [])
 
   async function loadData() {
+    setPageLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
     const { data } = await supabase.from('suggestions').select('*').eq('employee_id', user.id).order('created_at', { ascending: false })
     setSuggestions(data || [])
+    setPageLoading(false)
   }
 
   async function handleSubmit() {
@@ -47,85 +60,126 @@ export default function SuggestionPage() {
     loadData()
   }
 
+  const statusStyle = (s: string) => ({
+    unread: { bg: colors.warningBg, color: colors.warningText, label: 'Pending' },
+    read: { bg: colors.infoBg, color: colors.infoText, label: 'Read' },
+    replied: { bg: colors.successBg, color: colors.successText, label: 'Replied' },
+  }[s] || { bg: colors.borderLight, color: colors.textMuted, label: s })
+
   return (
-    <div className="p-6 max-w-3xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Suggestion Box  建议箱</h1>
-          <p className="text-gray-500 text-sm mt-1">Your feedback goes directly to the Director</p>
-        </div>
-        <button onClick={() => setShowForm(true)} className="flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-4 py-2.5 rounded-xl text-sm font-medium">
-          <Plus className="w-4 h-4" /> New Suggestion
-        </button>
-      </div>
+    <div style={{ ...styles.pageWrapper }}>
+      <div style={{ ...styles.pageInner }}>
 
-      <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-6 flex items-start gap-3">
-        <Lock className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
-        <div>
-          <p className="text-sm font-medium text-green-800">Private & Confidential</p>
-          <p className="text-xs text-green-600 mt-0.5">Only the Director can view suggestions. HR cannot see any submissions.</p>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <h1 style={{ ...styles.pageTitle }}>Suggestion Box 建议箱</h1>
+            <p style={{ ...styles.pageSubtitle }}>Your feedback goes directly to the Director</p>
+          </div>
+          <button onClick={() => setShowForm(!showForm)} style={{
+            ...styles.primaryButton,
+            display: 'flex', alignItems: 'center', gap: '6px',
+          }}>
+            <Plus size={16} />
+            New Suggestion
+          </button>
         </div>
-      </div>
 
-      {showForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg">
-            <div className="flex items-center justify-between p-5 border-b">
-              <h2 className="font-semibold text-gray-800">New Suggestion</h2>
-              <button onClick={() => setShowForm(false)}><X className="w-5 h-5 text-gray-400" /></button>
+        {/* Privacy notice */}
+        <div style={{ ...styles.card, marginBottom: '20px', display: 'flex', alignItems: 'flex-start', gap: '12px', background: colors.successBg, border: 'none' }}>
+          <ShieldCheck size={20} color={colors.successText} style={{ flexShrink: 0, marginTop: '2px' }} />
+          <div>
+            <p style={{ margin: 0, fontSize: font.sm, fontWeight: '700', color: colors.successText }}>Private &amp; Confidential</p>
+            <p style={{ margin: '2px 0 0', fontSize: font.xs, color: colors.successText }}>Only the Director can view suggestions. HR cannot see any submissions.</p>
+          </div>
+        </div>
+
+        {/* New Suggestion Form */}
+        {showForm && (
+          <div style={{ ...styles.card, marginBottom: '20px', border: `1px solid ${colors.primaryLight}` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 style={{ margin: 0, fontSize: font.lg, fontWeight: '700', color: colors.textPrimary }}>New Suggestion 新建议</h3>
+              <button onClick={() => setShowForm(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: colors.textMuted }}><X size={18} /></button>
             </div>
-            <div className="p-5 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Category  分类</label>
-                <select value={form.category} onChange={e => setForm({...form, category: e.target.value})} className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:outline-none">
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <Field label="Category 分类">
+                <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} style={{ ...styles.input }}>
                   <option value="">Select category...</option>
                   {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
                 </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Title  标题</label>
-                <input value={form.title} onChange={e => setForm({...form, title: e.target.value})} className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:outline-none" placeholder="Brief title..." />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Content  内容</label>
-                <textarea value={form.content} onChange={e => setForm({...form, content: e.target.value})} rows={5} className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:outline-none text-sm resize-none" placeholder="Share your suggestion or feedback..." />
-              </div>
-              <button onClick={() => setForm({...form, is_anonymous: !form.is_anonymous})}
-                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl border transition-colors ${form.is_anonymous ? 'bg-gray-800 text-white border-gray-800' : 'border-gray-200 hover:border-gray-300'}`}>
-                {form.is_anonymous ? <Lock className="w-4 h-4" /> : <User className="w-4 h-4" />}
-                <span className="text-sm font-medium">{form.is_anonymous ? 'Anonymous  匿名提交' : 'Show My Name  显示身份'}</span>
-              </button>
-              <button onClick={handleSubmit} disabled={loading || !form.category || !form.title || !form.content}
-                className="w-full bg-green-700 hover:bg-green-800 text-white font-semibold py-3 rounded-xl disabled:opacity-50">
-                {loading ? 'Submitting...' : 'Submit Suggestion'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+              </Field>
+              <Field label="Title 标题">
+                <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} style={{ ...styles.input }} placeholder="Brief title..." />
+              </Field>
+              <Field label="Content 内容">
+                <textarea value={form.content} onChange={e => setForm({ ...form, content: e.target.value })} rows={5}
+                  style={{ ...styles.input, resize: 'none' as const }} placeholder="Share your suggestion or feedback..." />
+              </Field>
 
-      <div className="space-y-4">
-        {suggestions.length === 0 ? (
-          <div className="bg-white rounded-xl p-8 text-center shadow-sm border border-gray-100">
-            <MessageSquare className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-400 text-sm">No suggestions yet. Share your feedback!</p>
-          </div>
-        ) : suggestions.map(s => (
-          <div key={s.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  {s.is_anonymous && <Lock className="w-3 h-3 text-gray-400" />}
-                  <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{CATEGORIES.find(c => c.value === s.category)?.label.split('  ')[0]}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${s.status === 'unread' ? 'bg-yellow-100 text-yellow-600' : s.status === 'replied' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'}`}>{s.status}</span>
-                </div>
-                <h3 className="font-semibold text-gray-800">{s.title}</h3>
+              <button onClick={() => setForm({ ...form, is_anonymous: !form.is_anonymous })} style={{
+                display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '12px 16px',
+                borderRadius: radius.md, border: `1.5px solid ${form.is_anonymous ? colors.sidebarBg : colors.border}`,
+                background: form.is_anonymous ? colors.sidebarBg : 'white',
+                color: form.is_anonymous ? 'white' : colors.textSecondary,
+                cursor: 'pointer', fontSize: font.sm, fontWeight: '600',
+              }}>
+                {form.is_anonymous ? <Lock size={16} /> : <User size={16} />}
+                {form.is_anonymous ? 'Anonymous 匿名提交' : 'Show My Name 显示身份'}
+              </button>
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button onClick={handleSubmit} disabled={loading || !form.category || !form.title || !form.content} style={{
+                  ...styles.primaryButton, opacity: (loading || !form.category || !form.title || !form.content) ? 0.6 : 1,
+                }}>
+                  {loading ? 'Submitting...' : 'Submit Suggestion'}
+                </button>
+                <button onClick={() => setShowForm(false)} style={{ ...styles.outlineButton }}>
+                  Cancel
+                </button>
               </div>
-              <span className="text-xs text-gray-400">{new Date(s.created_at).toLocaleDateString()}</span>
             </div>
-            <p className="text-sm text-gray-600">{s.content}</p>
           </div>
-        ))}
+        )}
+
+        {/* List */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {pageLoading ? (
+            <div style={{ ...styles.card, textAlign: 'center', padding: '48px', color: colors.textMuted }}>Loading...</div>
+          ) : suggestions.length === 0 ? (
+            <div style={{ ...styles.card, textAlign: 'center', padding: '48px' }}>
+              <MessageSquare size={32} color={colors.textMuted} style={{ margin: '0 auto 12px', display: 'block' }} />
+              <p style={{ margin: 0, color: colors.textMuted, fontSize: font.base }}>No suggestions yet. Share your feedback!</p>
+            </div>
+          ) : suggestions.map(s => {
+            const st = statusStyle(s.status)
+            return (
+              <div key={s.id} style={{ ...styles.card }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
+                      {s.is_anonymous && <Lock size={12} color={colors.textMuted} />}
+                      <span style={{ fontSize: font.xs, color: colors.textMuted, background: colors.borderLight, padding: '2px 10px', borderRadius: radius.full }}>
+                        {CATEGORIES.find(c => c.value === s.category)?.label.split(' ')[0]}
+                      </span>
+                      <span style={{ fontSize: '11px', fontWeight: '700', padding: '2px 10px', borderRadius: radius.full, background: st.bg, color: st.color }}>{st.label}</span>
+                    </div>
+                    <h3 style={{ margin: 0, fontSize: font.base, fontWeight: '700', color: colors.textPrimary }}>{s.title}</h3>
+                  </div>
+                  <span style={{ fontSize: font.xs, color: colors.textMuted, flexShrink: 0 }}>{new Date(s.created_at).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                </div>
+                <p style={{ margin: 0, fontSize: font.sm, color: colors.textSecondary, whiteSpace: 'pre-wrap' }}>{s.content}</p>
+                {s.director_reply && (
+                  <div style={{ marginTop: '12px', background: colors.successBg, borderRadius: radius.md, padding: '12px 14px' }}>
+                    <p style={{ margin: '0 0 4px', fontSize: font.xs, fontWeight: '700', color: colors.successText, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Director's Reply</p>
+                    <p style={{ margin: 0, fontSize: font.sm, color: colors.successText, whiteSpace: 'pre-wrap' }}>{s.director_reply}</p>
+                    {s.replied_at && <p style={{ margin: '6px 0 0', fontSize: font.xs, color: colors.successText, opacity: 0.7 }}>{new Date(s.replied_at).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}</p>}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
       </div>
     </div>
   )
