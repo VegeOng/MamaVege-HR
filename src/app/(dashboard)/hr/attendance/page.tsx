@@ -34,7 +34,7 @@ export default function HRAttendancePage() {
       .from('attendance')
       .select('*, profiles(full_name, employee_id, department)')
       .eq('date', selectedDate)
-      .order('check_in', { ascending: true })
+      .order('clock_in', { ascending: true })
     setRecords(data || [])
     setLoading(false)
   }
@@ -56,7 +56,7 @@ export default function HRAttendancePage() {
 
   function fmt(time: string | null) {
     if (!time) return '-'
-    return new Date('1970-01-01T' + time).toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit' })
+    return new Date(time).toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kuala_Lumpur' })
   }
 
   const initials = (name: string) => (name || 'U').split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
@@ -162,8 +162,8 @@ export default function HRAttendancePage() {
                         </div>
                       </td>
                       <td style={{ padding: '13px 16px', fontSize: font.sm, color: colors.textSecondary }}>{r.profiles?.department || '-'}</td>
-                      <td style={{ padding: '13px 16px', fontSize: font.sm, color: colors.textSecondary }}>{fmt(r.check_in)}</td>
-                      <td style={{ padding: '13px 16px', fontSize: font.sm, color: colors.textSecondary }}>{fmt(r.check_out)}</td>
+                      <td style={{ padding: '13px 16px', fontSize: font.sm, color: colors.textSecondary }}>{fmt(r.clock_in)}</td>
+                      <td style={{ padding: '13px 16px', fontSize: font.sm, color: colors.textSecondary }}>{fmt(r.clock_out)}</td>
                       <td style={{ padding: '13px 16px' }}>
                         <span style={{ background: s.bg, color: s.color, padding: '3px 10px', borderRadius: radius.full, fontSize: '11px', fontWeight: '700', textTransform: 'capitalize' }}>{s.label}</span>
                       </td>
