@@ -43,7 +43,7 @@ export default function HRClaimsPage() {
 
   async function loadData() {
     setLoading(true)
-    let q = supabase.from('claims').select('*, profiles(full_name, employee_id, department, whatsapp_number)').order('created_at', { ascending: false })
+    let q = supabase.from('claims').select('*, profiles!claims_employee_id_fkey(full_name, employee_id, department, whatsapp_number)').order('created_at', { ascending: false })
     if (filter !== 'all') q = q.eq('status', filter)
     const { data } = await q
     setClaims(data || [])

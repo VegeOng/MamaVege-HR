@@ -23,7 +23,7 @@ export default function HRDashboard() {
         supabase.from('claims').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
         supabase.from('ot_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
         supabase.from('profiles').select('basic_salary').eq('is_active', true),
-        supabase.from('leave_requests').select('*, profiles(full_name, employee_id)').eq('status', 'pending').order('created_at', { ascending: false }).limit(5),
+        supabase.from('leave_requests').select('*, profiles!leave_requests_employee_id_fkey(full_name, employee_id)').eq('status', 'pending').order('created_at', { ascending: false }).limit(5),
       ])
       setStats({ employees: a.count || 0, present: b.count || 0, late: c.count || 0, leaves: d.count || 0, claims: e.count || 0, ot: f.count || 0 })
       setPayroll((g.data || []).reduce((s: number, x: any) => s + (x.basic_salary || 0), 0))

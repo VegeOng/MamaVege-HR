@@ -41,7 +41,7 @@ export default function OTApprovals() {
 
     let q = supabase
       .from('ot_requests')
-      .select('*, profiles(full_name, employee_id, department)')
+      .select('*, profiles!ot_requests_employee_id_fkey(full_name, employee_id, department)')
       .in('employee_id', teamIds)
       .order('created_at', { ascending: false })
 

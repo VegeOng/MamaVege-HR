@@ -25,7 +25,7 @@ export default function HROTPage() {
 
   async function loadData() {
     setLoading(true)
-    let q = supabase.from('ot_requests').select('*, profiles(full_name, employee_id, department, whatsapp_number), supervisor:profiles!ot_requests_supervisor_id_fkey(full_name)').order('created_at', { ascending: false })
+    let q = supabase.from('ot_requests').select('*, profiles!ot_requests_employee_id_fkey(full_name, employee_id, department, whatsapp_number), supervisor:profiles!ot_requests_supervisor_id_fkey(full_name)').order('created_at', { ascending: false })
     if (filter !== 'all') q = q.eq('status', filter)
     const { data } = await q
     setRequests(data || [])
