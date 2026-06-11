@@ -31,6 +31,7 @@ export default function LeavePage() {
   const [loading, setLoading] = useState(false)
   const [pageLoading, setPageLoading] = useState(true)
   const [hrSettings, setHrSettings] = useState<any>({})
+  const [holidays, setHolidays] = useState<string[]>([])
   const [msg, setMsg] = useState<{ type: 'success' | 'error', text: string } | null>(null)
   const [form, setForm] = useState({
     leave_type_id: '',
@@ -53,18 +54,20 @@ export default function LeavePage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    const [profileRes, typesRes, balRes, reqRes, settingsRes] = await Promise.all([
+    const [profileRes, typesRes, balRes, reqRes, settingsRes, holidaysRes] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', user.id).single(),
       supabase.from('leave_types').select('*'),
       supabase.from('leave_entitlements').select('*, leave_type:leave_types(*)').eq('employee_id', user.id).eq('year', new Date().getFullYear()),
       supabase.from('leave_requests').select('*, leave_type:leave_types(name, code)').eq('employee_id', user.id).order('applied_at', { ascending: false }).limit(20),
       supabase.from('company_settings').select('*'),
+      supabase.from('public_holidays').select('date'),
     ])
 
     setProfile(profileRes.data)
     setLeaveTypes(typesRes.data || [])
     setBalances(balRes.data || [])
     setRequests(reqRes.data || [])
+    setHolidays((holidaysRes.data || []).map((h: any) => h.date))
 
     const settings: any = {}
     settingsRes.data?.forEach((s: any) => { settings[s.key] = s.value })
@@ -72,13 +75,26 @@ export default function LeavePage() {
     setPageLoading(false)
   }
 
+  // Counts only Mon-Fri, excluding public holidays (Sat/Sun and gazetted holidays are not deducted from leave)
+  function countWorkingDays(start: string, end: string) {
+    let count = 0
+    const d = new Date(start + 'T00:00:00')
+    const endD = new Date(end + 'T00:00:00')
+    while (d <= endD) {
+      const day = d.getDay()
+      const dateStr = d.toISOString().split('T')[0]
+      if (day !== 0 && day !== 6 && !holidays.includes(dateStr)) count++
+      d.setDate(d.getDate() + 1)
+    }
+    return count
+  }
+
   function calcHours() {
     if (form.duration_type === '2hours') return 2
     if (form.duration_type === 'half_day') return 4
     if (form.duration_type === 'full_day') return 8
     if (form.duration_type === 'multi_day' && form.start_date && form.end_date) {
-      const days = Math.ceil((new Date(form.end_date).getTime() - new Date(form.start_date).getTime()) / 86400000) + 1
-      return days * 8
+      return countWorkingDays(form.start_date, form.end_date) * 8
     }
     return 8
   }
@@ -86,6 +102,9 @@ export default function LeavePage() {
   async function handleSubmit() {
     if (!form.leave_type_id || !form.start_date) {
       setMsg({ type: 'error', text: 'Please select a leave type and date.' }); return
+    }
+    if (form.duration_type === 'multi_day' && (!form.end_date || calcHours() === 0)) {
+      setMsg({ type: 'error', text: 'Selected range has no working days (weekends/public holidays are not counted).' }); return
     }
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
