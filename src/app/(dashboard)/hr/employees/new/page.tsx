@@ -49,19 +49,39 @@ export default function NewEmployeePage() {
     if (!form.full_name || !form.email || !form.join_date) { alert('Please fill all required fields'); return }
     setLoading(true)
     try {
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-        email: form.email, email_confirm: true,
-        user_metadata: { full_name: form.full_name }
-      })
-      let userId = authData?.user?.id
-      if (authError || !userId) {
-        const { data: inviteData } = await supabase.auth.admin.inviteUserByEmail(form.email)
-        userId = inviteData?.user?.id
+      const currentYear = new Date().getFullYear()
+      const { data: leaveTypes } = await supabase.from('leave_types').select('id, code')
+      const entitlements = []
+      for (const lt of leaveTypes || []) {
+        let hours = 0
+        if (lt.code === 'AL') hours = parseInt(form.annual_leave_days || '0') * 8
+        else if (lt.code === 'ML') hours = parseInt(form.medical_leave_days || '0') * 8
+        else if (lt.code === 'EL') hours = parseInt(form.emergency_leave_days || '0') * 8
+        else if (lt.code === 'MAT') hours = 98 * 8
+        if (hours > 0) entitlements.push({ leave_type_id: lt.id, year: currentYear, entitled_hours: hours, used_hours: 0 })
       }
-      if (!userId) { alert('Error creating user. Please try again.'); setLoading(false); return }
 
-      const { data: countData } = await supabase.from('profiles').select('id', { count: 'exact' })
-      const empId = `MV${String((countData?.length || 0) + 1).padStart(4, '0')}`
+      const res = await fetch('/api/admin/create-employee', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profile: {
+            full_name: form.full_name, email: form.email,
+            phone: form.phone, whatsapp_number: form.whatsapp_number,
+            ic_number: form.ic_number, ic_type: form.ic_type,
+            department: form.department, position: form.position, role: form.role,
+            join_date: form.join_date, shift: form.shift, clock_in_method: form.clock_in_method,
+            supervisor_id: form.supervisor_id || null,
+            basic_salary: parseFloat(form.basic_salary) || 0,
+            epf_number: form.epf_number, socso_number: form.socso_number, tax_number: form.tax_number,
+            bank_name: form.bank_name, bank_account: form.bank_account,
+          },
+          leaveEntitlements: entitlements,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) { alert(json.error || 'Error creating employee. Please try again.'); setLoading(false); return }
+      const userId = json.data.id
 
       let offerUrl = null, icUrl = null
       if (offerFile) {
@@ -78,18 +98,6 @@ export default function NewEmployeePage() {
         icUrl = data?.publicUrl
       }
 
-      await supabase.from('profiles').insert({
-        id: userId, employee_id: empId, full_name: form.full_name, email: form.email,
-        phone: form.phone, whatsapp_number: form.whatsapp_number,
-        ic_number: form.ic_number, ic_type: form.ic_type,
-        department: form.department, position: form.position, role: form.role,
-        join_date: form.join_date, shift: form.shift, clock_in_method: form.clock_in_method,
-        supervisor_id: form.supervisor_id || null,
-        basic_salary: parseFloat(form.basic_salary) || 0,
-        epf_number: form.epf_number, socso_number: form.socso_number, tax_number: form.tax_number,
-        bank_name: form.bank_name, bank_account: form.bank_account, is_active: true,
-      })
-
       if (offerUrl && offerFile) {
         await supabase.from('employee_documents').insert({ employee_id: userId, document_type: 'offer_letter', title: 'Offer Letter', file_url: offerUrl, file_name: offerFile.name, file_size: offerFile.size })
       }
@@ -97,19 +105,7 @@ export default function NewEmployeePage() {
         await supabase.from('employee_documents').insert({ employee_id: userId, document_type: 'ic_copy', title: 'IC / Work Permit Copy', file_url: icUrl, file_name: icFile.name, file_size: icFile.size })
       }
 
-      const currentYear = new Date().getFullYear()
-      const { data: leaveTypes } = await supabase.from('leave_types').select('id, code')
-      const entitlements = []
-      for (const lt of leaveTypes || []) {
-        let hours = 0
-        if (lt.code === 'AL') hours = parseInt(form.annual_leave_days || '0') * 8
-        else if (lt.code === 'ML') hours = parseInt(form.medical_leave_days || '0') * 8
-        else if (lt.code === 'EL') hours = parseInt(form.emergency_leave_days || '0') * 8
-        else if (lt.code === 'MAT') hours = 98 * 8
-        if (hours > 0) entitlements.push({ employee_id: userId, leave_type_id: lt.id, year: currentYear, entitled_hours: hours, used_hours: 0 })
-      }
-      if (entitlements.length > 0) await supabase.from('leave_entitlements').insert(entitlements)
-
+      alert(`Employee account created (${json.data.employee_id}). Ask them to use "Forgot Password" on the login page with ${form.email} to set their password.`)
       router.push('/hr/employees')
     } catch (err) {
       console.error(err)
