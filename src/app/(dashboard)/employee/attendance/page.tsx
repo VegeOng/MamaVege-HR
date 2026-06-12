@@ -20,6 +20,7 @@ export default function AttendancePage() {
   const [fingerprintLoading, setFingerprintLoading] = useState(false)
   const [showFingerprintSetup, setShowFingerprintSetup] = useState(false)
   const [deviceName, setDeviceName] = useState('My Phone')
+  const [remark, setRemark] = useState('')
   const supabase = createClient()
 
   useEffect(() => {
@@ -181,6 +182,7 @@ export default function AttendancePage() {
     const shiftStart = new Date(`${today}T08:00:00`)
     const isLate = isClockIn && now > shiftStart
     const lateMinutes = isLate ? Math.floor((now.getTime() - shiftStart.getTime()) / 60000) : 0
+    const trimmedRemark = remark.trim()
 
     if (isClockIn) {
       await supabase.from('attendance').upsert({
@@ -188,23 +190,28 @@ export default function AttendancePage() {
         clock_in: now.toISOString(),
         clock_in_lat: location?.lat, clock_in_lng: location?.lng,
         is_late: isLate, late_minutes: lateMinutes,
-        status: isLate ? 'late' : 'present'
+        status: isLate ? 'late' : 'present',
+        notes: trimmedRemark || null,
       })
       setMessage({ type: 'success', text: `Clocked in at ${now.toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit' })}${isLate ? ` · Late by ${lateMinutes} min` : ' · On time!'}` })
     } else {
       const totalHours = (now.getTime() - new Date(todayRecord.clock_in).getTime()) / 3600000
       const endHour = profile?.shift === 'B' ? 18 : 17
       const otHours = Math.max(0, now.getHours() + now.getMinutes() / 60 - endHour)
+      const combinedNotes = trimmedRemark
+        ? (todayRecord.notes ? `${todayRecord.notes} | ${trimmedRemark}` : trimmedRemark)
+        : todayRecord.notes
       await supabase.from('attendance').update({
         clock_out: now.toISOString(),
         clock_out_lat: location?.lat, clock_out_lng: location?.lng,
         total_hours: parseFloat(totalHours.toFixed(2)),
         overtime_hours: parseFloat(otHours.toFixed(2)),
+        notes: combinedNotes,
       }).eq('id', todayRecord.id)
       setMessage({ type: 'success', text: `Clocked out at ${now.toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit' })} · Total ${totalHours.toFixed(1)}h` })
     }
 
-    setStep('done'); setPin(''); setLoading(false); loadData()
+    setStep('done'); setPin(''); setRemark(''); setLoading(false); loadData()
   }
 
   const Keypad = ({ value, onChange, onSubmit, submitLabel }: { value: string, onChange: (v: string) => void, onSubmit: () => void, submitLabel: string }) => (
@@ -433,9 +440,24 @@ export default function AttendancePage() {
               {profile?.clock_in_method === 'wifi' ? <Wifi size={26} color="#059669" /> : <MapPin size={26} color="#059669" />}
             </div>
             <h3 style={{ margin: '0 0 6px', fontSize: font.lg, fontWeight: '700', color: colors.textPrimary }}>PIN Verified ✓</h3>
-            <p style={{ margin: '0 0 24px', fontSize: font.base, color: colors.textMuted }}>
+            <p style={{ margin: '0 0 16px', fontSize: font.base, color: colors.textMuted }}>
               {todayRecord?.clock_in ? 'Ready to clock out?' : 'Ready to clock in?'}
             </p>
+
+            {/* Remark */}
+            <div style={{ textAlign: 'left', marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontSize: font.xs, fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '6px' }}>
+                Remark (optional) 备注
+              </label>
+              <textarea
+                value={remark}
+                onChange={e => setRemark(e.target.value)}
+                placeholder="若迟到或早退，可在此说明原因 e.g. Traffic jam, doctor appointment..."
+                rows={2}
+                style={{ ...styles.input, width: '100%', resize: 'vertical', fontFamily: 'inherit' }}
+              />
+            </div>
+
             <button onClick={handleClockAction} disabled={loading} style={{
               ...styles.primaryButton,
               width: '100%', padding: '15px', fontSize: font.lg,
