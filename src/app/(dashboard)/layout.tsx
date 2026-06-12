@@ -6,12 +6,15 @@ import Link from 'next/link'
 import {
   LayoutDashboard, Clock, CalendarDays, Timer, Briefcase,
   Wallet, FolderOpen, MessageSquare, CheckSquare, Users,
-  BarChart3, Settings, CalendarCheck, LogOut, ChevronRight, FileBarChart
+  BarChart3, Settings, CalendarCheck, LogOut, ChevronRight, FileBarChart,
+  Menu, X
 } from 'lucide-react'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [isMobile, setIsMobile] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
@@ -27,6 +30,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
     load()
   }, [])
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+
+  // Close mobile sidebar whenever the route changes
+  useEffect(() => {
+    setSidebarOpen(false)
+  }, [pathname])
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -130,17 +145,58 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
+      {/* Mobile top bar */}
+      {isMobile && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, height: '52px',
+          background: '#0F172A', display: 'flex', alignItems: 'center',
+          padding: '0 12px', zIndex: 110, borderBottom: '1px solid rgba(255,255,255,0.06)',
+        }}>
+          <button onClick={() => setSidebarOpen(true)} style={{
+            background: 'transparent', border: 'none', color: 'white',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: '36px', height: '36px', borderRadius: '8px', cursor: 'pointer',
+          }}>
+            <Menu size={20} />
+          </button>
+          <img src="/logo.png" alt="MamaVege" style={{ height: '26px', width: 'auto', marginLeft: '8px', mixBlendMode: 'screen' }} />
+        </div>
+      )}
+
+      {/* Mobile overlay backdrop */}
+      {isMobile && sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0,0,0,0.4)', zIndex: 199,
+          }}
+        />
+      )}
+
       {/* Sidebar */}
       <div style={{
         width: '232px', background: '#0F172A',
         display: 'flex', flexDirection: 'column',
         position: 'fixed', top: 0, left: 0, height: '100vh',
-        overflowY: 'auto', zIndex: 100,
+        overflowY: 'auto', zIndex: 200,
+        transform: isMobile && !sidebarOpen ? 'translateX(-100%)' : 'translateX(0)',
+        transition: 'transform 0.2s ease',
       }}>
         {/* Logo */}
-        <div style={{ padding: '16px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-          <img src="/logo.png" alt="MamaVege" style={{ width: '130px', height: 'auto', display: 'block', mixBlendMode: 'screen' }} />
-          <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: '10px', margin: '6px 0 0', letterSpacing: '0.04em' }}>HR Management System</p>
+        <div style={{ padding: '16px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px' }}>
+          <div>
+            <img src="/logo.png" alt="MamaVege" style={{ width: '130px', height: 'auto', display: 'block', mixBlendMode: 'screen' }} />
+            <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: '10px', margin: '6px 0 0', letterSpacing: '0.04em' }}>HR Management System</p>
+          </div>
+          {isMobile && (
+            <button onClick={() => setSidebarOpen(false)} style={{
+              background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.5)',
+              cursor: 'pointer', flexShrink: 0, padding: '4px',
+            }}>
+              <X size={18} />
+            </button>
+          )}
         </div>
 
         {/* User */}
@@ -215,7 +271,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </div>
 
       {/* Main content */}
-      <div style={{ flex: 1, marginLeft: '232px', background: '#F8FAFC', minHeight: '100vh' }}>
+      <div style={{
+        flex: 1, marginLeft: isMobile ? 0 : '232px',
+        paddingTop: isMobile ? '52px' : 0,
+        background: '#F8FAFC', minHeight: '100vh',
+        width: '100%', minWidth: 0,
+      }}>
         {children}
       </div>
     </div>
