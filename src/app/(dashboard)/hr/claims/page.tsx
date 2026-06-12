@@ -43,7 +43,7 @@ export default function HRClaimsPage() {
 
   async function loadData() {
     setLoading(true)
-    let q = supabase.from('claims').select('*, profiles!claims_employee_id_fkey(full_name, employee_id, department, whatsapp_number)').order('created_at', { ascending: false })
+    let q = supabase.from('claims').select('*, profiles!claims_employee_id_fkey(full_name, employee_id, department, whatsapp_number)').order('claim_date', { ascending: false })
     if (filter !== 'all') q = q.eq('status', filter)
     const { data } = await q
     setClaims(data || [])
@@ -169,7 +169,7 @@ export default function HRClaimsPage() {
                         <p style={{ margin: '4px 0 0', fontSize: font.sm, color: colors.textSecondary }}>{c.description || '-'}</p>
                         <div style={{ display: 'flex', gap: '12px', marginTop: '6px', flexWrap: 'wrap' }}>
                           <span style={{ fontSize: font.xs, color: colors.textMuted }}>{monthLabel(c.month, c.year)}</span>
-                          <span style={{ fontSize: font.xs, color: colors.textMuted }}>Submitted {new Date(c.created_at).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}</span>
+                          <span style={{ fontSize: font.xs, color: colors.textMuted }}>Claim date: {new Date(c.claim_date || c.created_at).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                           {c.receipt_url && (
                             <a href={c.receipt_url} target="_blank" rel="noreferrer" style={{ fontSize: font.xs, color: colors.info, fontWeight: '600', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '3px' }}>
                               <FileText size={11} />View Receipt

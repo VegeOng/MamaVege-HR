@@ -60,7 +60,7 @@ export default function EmployeeClaimsPage() {
 
     const [profileRes, claimsRes, limitsRes, settingsRes] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', user.id).single(),
-      supabase.from('claims').select('*, claim_type:claim_types(name)').eq('employee_id', user.id).order('created_at', { ascending: false }),
+      supabase.from('claims').select('*, claim_type:claim_types(name)').eq('employee_id', user.id).order('claim_date', { ascending: false }),
       supabase.from('claim_limits').select('*').eq('employee_id', user.id),
       supabase.from('company_settings').select('*'),
     ])
@@ -128,15 +128,16 @@ export default function EmployeeClaimsPage() {
       }
     }
 
-    const now = new Date()
+    const claimDate = new Date(form.date)
     const { error } = await supabase.from('claims').insert({
       employee_id: user.id,
       claim_type_id: form.claim_type_id,
       amount: amt,
       description: form.description,
       receipt_url: receiptUrl,
-      month: now.getMonth() + 1,
-      year: now.getFullYear(),
+      claim_date: form.date,
+      month: claimDate.getMonth() + 1,
+      year: claimDate.getFullYear(),
       status: 'pending',
     })
 
@@ -348,7 +349,7 @@ export default function EmployeeClaimsPage() {
                     alignItems: 'center',
                   }}>
                     <p style={{ margin: 0, fontSize: font.base, color: colors.textSecondary }}>
-                      {new Date(c.created_at).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}
+                      {new Date(c.claim_date || c.created_at).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}
                     </p>
                     <div>
                       <p style={{ margin: 0, fontSize: font.base, color: colors.textPrimary, fontWeight: '500' }}>{c.description}</p>
