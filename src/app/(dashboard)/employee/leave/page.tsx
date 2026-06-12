@@ -54,20 +54,24 @@ export default function LeavePage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    const [profileRes, typesRes, balRes, reqRes, settingsRes, holidaysRes] = await Promise.all([
+    const [profileRes, typesRes, balRes, reqRes, settingsRes, holidaysRes, specialHolidaysRes] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', user.id).single(),
       supabase.from('leave_types').select('*'),
       supabase.from('leave_entitlements').select('*, leave_type:leave_types(*)').eq('employee_id', user.id).eq('year', new Date().getFullYear()),
       supabase.from('leave_requests').select('*, leave_type:leave_types(name, code)').eq('employee_id', user.id).order('applied_at', { ascending: false }).limit(20),
       supabase.from('company_settings').select('*'),
       supabase.from('public_holidays').select('date'),
+      supabase.from('employee_holidays').select('date').eq('employee_id', user.id),
     ])
 
     setProfile(profileRes.data)
     setLeaveTypes(typesRes.data || [])
     setBalances(balRes.data || [])
     setRequests(reqRes.data || [])
-    setHolidays((holidaysRes.data || []).map((h: any) => h.date))
+    setHolidays([
+      ...(holidaysRes.data || []).map((h: any) => h.date),
+      ...(specialHolidaysRes.data || []).map((h: any) => h.date),
+    ])
 
     const settings: any = {}
     settingsRes.data?.forEach((s: any) => { settings[s.key] = s.value })

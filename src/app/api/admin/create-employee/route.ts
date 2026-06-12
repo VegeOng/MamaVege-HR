@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server'
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { profile, leaveEntitlements } = body
+    const { profile, leaveEntitlements, specialHolidays } = body
     if (!profile?.email || !profile?.full_name) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
@@ -57,6 +57,13 @@ export async function POST(request: Request) {
     if (Array.isArray(leaveEntitlements) && leaveEntitlements.length > 0) {
       await admin.from('leave_entitlements').insert(
         leaveEntitlements.map((e: any) => ({ ...e, employee_id: userId }))
+      )
+    }
+
+    // 5. Insert special (state-specific) holidays
+    if (Array.isArray(specialHolidays) && specialHolidays.length > 0) {
+      await admin.from('employee_holidays').insert(
+        specialHolidays.map((h: any) => ({ employee_id: userId, name: h.name, date: h.date }))
       )
     }
 

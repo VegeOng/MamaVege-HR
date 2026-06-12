@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { ArrowLeft, Save, Trash2, MessageCircle } from 'lucide-react'
+import { ArrowLeft, Save, Trash2, MessageCircle, Plus } from 'lucide-react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { colors, radius, styles, font } from '@/lib/design'
@@ -28,6 +28,9 @@ export default function EditEmployeePage() {
   const [departments, setDepartments] = useState<any[]>([])
   const [supervisors, setSupervisors] = useState<any[]>([])
   const [balances, setBalances] = useState<any[]>([])
+  const [specialHolidays, setSpecialHolidays] = useState<any[]>([])
+  const [newHoliday, setNewHoliday] = useState({ date: '', name: '' })
+  const [savingHoliday, setSavingHoliday] = useState(false)
   const [form, setForm] = useState<any>({})
   const router = useRouter()
   const supabase = createClient()
@@ -35,16 +38,18 @@ export default function EditEmployeePage() {
   useEffect(() => { loadData() }, [id])
 
   async function loadData() {
-    const [{ data: profile }, { data: depts }, { data: sups }, { data: bal }] = await Promise.all([
+    const [{ data: profile }, { data: depts }, { data: sups }, { data: bal }, { data: holidays }] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', id).single(),
       supabase.from('departments').select('*').order('name'),
       supabase.from('profiles').select('id, full_name, employee_id, role').in('role', ['supervisor', 'hr']).eq('is_active', true).order('full_name'),
       supabase.from('leave_entitlements').select('*, leave_type:leave_types(name, code)').eq('employee_id', id).eq('year', new Date().getFullYear()),
+      supabase.from('employee_holidays').select('*').eq('employee_id', id).order('date'),
     ])
     if (profile) setForm(profile)
     setDepartments(depts || [])
     setSupervisors((sups || []).filter((s: any) => s.id !== id))
     setBalances(bal || [])
+    setSpecialHolidays(holidays || [])
     setLoading(false)
   }
 
@@ -112,6 +117,21 @@ export default function EditEmployeePage() {
     else { setMsg({ type: 'success', text: 'Employee profile updated!' }); loadData() }
     setSaving(false)
     setTimeout(() => setMsg(null), 3000)
+  }
+
+  async function handleAddHoliday() {
+    if (!newHoliday.date || !newHoliday.name) return
+    setSavingHoliday(true)
+    await supabase.from('employee_holidays').insert({ employee_id: id, date: newHoliday.date, name: newHoliday.name })
+    setNewHoliday({ date: '', name: '' })
+    const { data } = await supabase.from('employee_holidays').select('*').eq('employee_id', id).order('date')
+    setSpecialHolidays(data || [])
+    setSavingHoliday(false)
+  }
+
+  async function handleDeleteHoliday(holidayId: string) {
+    await supabase.from('employee_holidays').delete().eq('id', holidayId)
+    setSpecialHolidays(specialHolidays.filter(h => h.id !== holidayId))
   }
 
   async function handleDeactivate() {
@@ -266,6 +286,43 @@ export default function EditEmployeePage() {
             <div><Label>Bank Name</Label><input value={form.bank_name || ''} onChange={e => f('bank_name', e.target.value)} placeholder="e.g. Maybank" style={inputStyle} /></div>
             <div><Label>Bank Account No.</Label><input value={form.bank_account || ''} onChange={e => f('bank_account', e.target.value)} style={inputStyle} /></div>
           </div>
+        </Section>
+
+        {/* Special Holidays */}
+        <Section title="Special Holidays 特别假期">
+          <p style={{ margin: '-8px 0 14px', fontSize: font.xs, color: colors.textMuted }}>
+            Extra state-specific public holidays for this employee. These dates won't be deducted from their leave balance.
+          </p>
+          {specialHolidays.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '14px' }}>
+              {specialHolidays.map(h => (
+                <div key={h.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: colors.borderLight, borderRadius: radius.sm }}>
+                  <span style={{ fontSize: font.sm, color: colors.textPrimary, fontWeight: '600' }}>
+                    {new Date(h.date + 'T00:00:00').toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })} — {h.name}
+                  </span>
+                  <button onClick={() => handleDeleteHoliday(h.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: colors.danger, display: 'flex', alignItems: 'center' }}>
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {specialHolidays.length < 3 && (
+            <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr auto', gap: '10px', alignItems: 'end' }}>
+              <div>
+                <Label>Date</Label>
+                <input type="date" value={newHoliday.date} onChange={e => setNewHoliday({ ...newHoliday, date: e.target.value })} style={inputStyle} />
+              </div>
+              <div>
+                <Label>Holiday Name</Label>
+                <input value={newHoliday.name} onChange={e => setNewHoliday({ ...newHoliday, name: e.target.value })} placeholder="e.g. Sarawak Day" style={inputStyle} />
+              </div>
+              <button onClick={handleAddHoliday} disabled={savingHoliday || !newHoliday.date || !newHoliday.name}
+                style={{ ...styles.outlineButton, padding: '10px', display: 'flex', alignItems: 'center', gap: '6px', opacity: (savingHoliday || !newHoliday.date || !newHoliday.name) ? 0.5 : 1 }}>
+                <Plus size={14} />Add
+              </button>
+            </div>
+          )}
         </Section>
 
         {/* Save */}

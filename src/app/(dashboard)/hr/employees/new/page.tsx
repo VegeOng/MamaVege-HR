@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { ArrowLeft, Upload, User, Save } from 'lucide-react'
+import { ArrowLeft, Upload, User, Save, Plus, Trash2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { colors, radius, styles, font } from '@/lib/design'
@@ -25,6 +25,7 @@ export default function NewEmployeePage() {
   const [supervisors, setSupervisors] = useState<any[]>([])
   const [offerFile, setOfferFile] = useState<File | null>(null)
   const [icFile, setIcFile] = useState<File | null>(null)
+  const [specialHolidays, setSpecialHolidays] = useState<{ date: string; name: string }[]>([{ date: '', name: '' }])
   const [form, setForm] = useState({
     full_name: '', email: '', phone: '', whatsapp_number: '',
     ic_number: '', ic_type: 'nric',
@@ -77,6 +78,7 @@ export default function NewEmployeePage() {
             bank_name: form.bank_name, bank_account: form.bank_account,
           },
           leaveEntitlements: entitlements,
+          specialHolidays: specialHolidays.filter(h => h.date && h.name),
         }),
       })
       const json = await res.json()
@@ -265,6 +267,42 @@ export default function NewEmployeePage() {
               <input type="number" value={form.emergency_leave_days} onChange={e => f('emergency_leave_days', e.target.value)} placeholder="3" style={inputStyle} />
             </div>
           </div>
+        </Section>
+
+        {/* Special Holidays */}
+        <Section title="Special Holidays 特别假期">
+          <p style={{ margin: '-8px 0 14px', fontSize: font.xs, color: colors.textMuted }}>
+            For employees based in a different state with extra public holidays (e.g. state-specific Hari Raya, Anniversary). These dates won't be deducted from this employee's leave balance.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {specialHolidays.map((h, i) => (
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: '160px 1fr 36px', gap: '10px', alignItems: 'end' }}>
+                <div>
+                  {i === 0 && <Label>Date</Label>}
+                  <input type="date" value={h.date} onChange={e => {
+                    const next = [...specialHolidays]; next[i] = { ...next[i], date: e.target.value }; setSpecialHolidays(next)
+                  }} style={inputStyle} />
+                </div>
+                <div>
+                  {i === 0 && <Label>Holiday Name</Label>}
+                  <input value={h.name} onChange={e => {
+                    const next = [...specialHolidays]; next[i] = { ...next[i], name: e.target.value }; setSpecialHolidays(next)
+                  }} placeholder="e.g. Sarawak Day" style={inputStyle} />
+                </div>
+                <button type="button" onClick={() => setSpecialHolidays(specialHolidays.filter((_, idx) => idx !== i))}
+                  disabled={specialHolidays.length === 1}
+                  style={{ ...styles.outlineButton, padding: '10px', color: colors.danger, borderColor: colors.danger, opacity: specialHolidays.length === 1 ? 0.4 : 1, cursor: specialHolidays.length === 1 ? 'default' : 'pointer' }}>
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+          {specialHolidays.length < 3 && (
+            <button type="button" onClick={() => setSpecialHolidays([...specialHolidays, { date: '', name: '' }])}
+              style={{ ...styles.outlineButton, marginTop: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Plus size={14} />Add Holiday
+            </button>
+          )}
         </Section>
 
         {/* Documents */}
