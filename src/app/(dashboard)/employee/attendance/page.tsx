@@ -38,7 +38,7 @@ export default function AttendancePage() {
     setPinAttempts(p?.pin_attempts || 0)
     if (!p?.pin_hash) setStep('setup')
 
-    const today = new Date().toISOString().split('T')[0]
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kuala_Lumpur' })
     const { data: att } = await supabase.from('attendance').select('*').eq('employee_id', user.id).eq('date', today).maybeSingle()
     setTodayRecord(att)
 
@@ -177,9 +177,9 @@ export default function AttendancePage() {
     if (!user) return
 
     const now = new Date()
-    const today = now.toISOString().split('T')[0]
+    const today = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Kuala_Lumpur' })
     const isClockIn = !todayRecord?.clock_in
-    const shiftStart = new Date(`${today}T08:00:00`)
+    const shiftStart = new Date(`${today}T08:00:00+08:00`)
     const isLate = isClockIn && now > shiftStart
     const lateMinutes = isLate ? Math.floor((now.getTime() - shiftStart.getTime()) / 60000) : 0
     const trimmedRemark = remark.trim()
