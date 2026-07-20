@@ -28,6 +28,13 @@ export default function EditEmployeePage() {
   const [departments, setDepartments] = useState<any[]>([])
   const [supervisors, setSupervisors] = useState<any[]>([])
   const [balances, setBalances] = useState<any[]>([])
+  const [leaveTypes, setLeaveTypes] = useState<Record<string, { name: string; code: string }>>({})
+  const [leaveMonth, setLeaveMonth] = useState(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  })
+  const [monthlyLeave, setMonthlyLeave] = useState<any[]>([])
+  const [loadingLeave, setLoadingLeave] = useState(false)
   const [specialHolidays, setSpecialHolidays] = useState<any[]>([])
   const [newHoliday, setNewHoliday] = useState({ date: '', name: '' })
   const [savingHoliday, setSavingHoliday] = useState(false)
@@ -36,6 +43,8 @@ export default function EditEmployeePage() {
   const supabase = createClient()
 
   useEffect(() => { loadData() }, [id])
+  useEffect(() => { loadLeaveTypes() }, [])
+  useEffect(() => { if (id) loadMonthlyLeave() }, [id, leaveMonth])
 
   async function loadData() {
     const [{ data: profile }, { data: depts }, { data: sups }, { data: bal }, { data: holidays }] = await Promise.all([
@@ -51,6 +60,24 @@ export default function EditEmployeePage() {
     setBalances(bal || [])
     setSpecialHolidays(holidays || [])
     setLoading(false)
+  }
+
+  async function loadLeaveTypes() {
+    const { data } = await supabase.from('leave_types').select('id, name, code')
+    const map: Record<string, { name: string; code: string }> = {}
+    for (const t of data || []) map[t.id] = { name: t.name, code: t.code }
+    setLeaveTypes(map)
+  }
+
+  async function loadMonthlyLeave() {
+    setLoadingLeave(true)
+    const [y, m] = leaveMonth.split('-').map(Number)
+    const start = `${leaveMonth}-01`
+    const end = `${leaveMonth}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`
+    const { data } = await supabase.from('leave_requests').select('*')
+      .eq('employee_id', id).gte('start_date', start).lte('start_date', end).order('start_date')
+    setMonthlyLeave(data || [])
+    setLoadingLeave(false)
   }
 
   function notifyLeaveBalance() {
@@ -227,6 +254,69 @@ export default function EditEmployeePage() {
             </div>
           </div>
         )}
+
+        {/* Leave Summary */}
+        <div style={{ ...styles.card, marginBottom: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', paddingBottom: '12px', borderBottom: `1px solid ${colors.borderLight}`, flexWrap: 'wrap', gap: '10px' }}>
+            <h3 style={{ fontSize: font.base, fontWeight: '700', color: colors.textPrimary, margin: 0 }}>Leave Summary 假期记录</h3>
+            <input type="month" value={leaveMonth} onChange={e => setLeaveMonth(e.target.value)} style={{ ...styles.input, padding: '6px 10px', fontSize: font.sm, width: 'auto' }} />
+          </div>
+
+          {loadingLeave ? (
+            <p style={{ margin: 0, color: colors.textMuted, fontSize: font.sm }}>Loading...</p>
+          ) : monthlyLeave.length === 0 ? (
+            <p style={{ margin: 0, color: colors.textMuted, fontSize: font.sm }}>No leave requests in this month.</p>
+          ) : (() => {
+            const approvedByType: Record<string, number> = {}
+            monthlyLeave.filter(r => r.status === 'approved').forEach(r => {
+              const code = leaveTypes[r.leave_type_id]?.code || 'Other'
+              approvedByType[code] = (approvedByType[code] || 0) + (r.total_hours || 0) / 8
+            })
+            const totalApprovedDays = Object.values(approvedByType).reduce((a, b) => a + b, 0)
+            return (
+              <>
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '16px' }}>
+                  <div style={{ padding: '8px 14px', background: colors.successBg, borderRadius: radius.sm }}>
+                    <span style={{ fontSize: font.xs, color: colors.successText, fontWeight: '700' }}>
+                      Approved Total: {totalApprovedDays % 1 === 0 ? totalApprovedDays.toFixed(0) : totalApprovedDays.toFixed(1)} day(s)
+                    </span>
+                  </div>
+                  {Object.entries(approvedByType).map(([code, days]) => (
+                    <div key={code} style={{ padding: '8px 14px', background: colors.infoBg, borderRadius: radius.sm }}>
+                      <span style={{ fontSize: font.xs, color: colors.infoText, fontWeight: '700' }}>
+                        {code}: {days % 1 === 0 ? days.toFixed(0) : days.toFixed(1)} day(s)
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {monthlyLeave.map(r => {
+                    const type = leaveTypes[r.leave_type_id]
+                    const days = (r.total_hours || 0) / 8
+                    return (
+                      <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: colors.borderLight, borderRadius: radius.sm, flexWrap: 'wrap', gap: '6px' }}>
+                        <div>
+                          <span style={{ fontSize: font.sm, fontWeight: '600', color: colors.textPrimary }}>{type?.name || 'Leave'}</span>
+                          <span style={{ fontSize: font.xs, color: colors.textMuted, marginLeft: '8px' }}>
+                            {new Date(r.start_date + 'T00:00:00').toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}
+                            {r.end_date !== r.start_date ? ` – ${new Date(r.end_date + 'T00:00:00').toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}` : ''}
+                            {' · '}{days % 1 === 0 ? days.toFixed(0) : days.toFixed(1)} day(s)
+                          </span>
+                        </div>
+                        <span style={{
+                          fontSize: '10px', fontWeight: '700', padding: '3px 10px', borderRadius: radius.full, textTransform: 'capitalize',
+                          background: r.status === 'approved' ? colors.successBg : r.status === 'rejected' ? colors.dangerBg : colors.warningBg,
+                          color: r.status === 'approved' ? colors.successText : r.status === 'rejected' ? colors.dangerText : colors.warningText,
+                        }}>{r.status}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </>
+            )
+          })()}
+        </div>
 
         {/* Employment */}
         <Section title="Employment Details 工作资料">
