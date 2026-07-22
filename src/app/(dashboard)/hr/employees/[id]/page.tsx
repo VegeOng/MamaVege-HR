@@ -35,6 +35,14 @@ export default function EditEmployeePage() {
   })
   const [monthlyLeave, setMonthlyLeave] = useState<any[]>([])
   const [loadingLeave, setLoadingLeave] = useState(false)
+  const [claimTypes, setClaimTypes] = useState<Record<string, { name: string; code: string }>>({})
+  const [claimLimits, setClaimLimits] = useState<Record<string, number>>({})
+  const [claimMonth, setClaimMonth] = useState(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  })
+  const [monthlyClaims, setMonthlyClaims] = useState<any[]>([])
+  const [loadingClaims, setLoadingClaims] = useState(false)
   const [specialHolidays, setSpecialHolidays] = useState<any[]>([])
   const [newHoliday, setNewHoliday] = useState({ date: '', name: '' })
   const [savingHoliday, setSavingHoliday] = useState(false)
@@ -45,6 +53,9 @@ export default function EditEmployeePage() {
   useEffect(() => { loadData() }, [id])
   useEffect(() => { loadLeaveTypes() }, [])
   useEffect(() => { if (id) loadMonthlyLeave() }, [id, leaveMonth])
+  useEffect(() => { loadClaimTypes() }, [])
+  useEffect(() => { if (id) loadClaimLimits() }, [id])
+  useEffect(() => { if (id) loadMonthlyClaims() }, [id, claimMonth])
 
   async function loadData() {
     const [{ data: profile }, { data: depts }, { data: sups }, { data: bal }, { data: holidays }] = await Promise.all([
@@ -78,6 +89,29 @@ export default function EditEmployeePage() {
       .eq('employee_id', id).gte('start_date', start).lte('start_date', end).order('start_date')
     setMonthlyLeave(data || [])
     setLoadingLeave(false)
+  }
+
+  async function loadClaimTypes() {
+    const { data } = await supabase.from('claim_types').select('id, name, code')
+    const map: Record<string, { name: string; code: string }> = {}
+    for (const t of data || []) map[t.id] = { name: t.name, code: t.code }
+    setClaimTypes(map)
+  }
+
+  async function loadClaimLimits() {
+    const { data } = await supabase.from('claim_limits').select('claim_type_id, monthly_limit').eq('employee_id', id)
+    const map: Record<string, number> = {}
+    for (const l of data || []) map[l.claim_type_id] = l.monthly_limit || 0
+    setClaimLimits(map)
+  }
+
+  async function loadMonthlyClaims() {
+    setLoadingClaims(true)
+    const [year, month] = claimMonth.split('-').map(Number)
+    const { data } = await supabase.from('claims').select('*')
+      .eq('employee_id', id).eq('year', year).eq('month', month).order('claim_date')
+    setMonthlyClaims(data || [])
+    setLoadingClaims(false)
   }
 
   function notifyLeaveBalance() {
@@ -309,6 +343,72 @@ export default function EditEmployeePage() {
                           background: r.status === 'approved' ? colors.successBg : r.status === 'rejected' ? colors.dangerBg : colors.warningBg,
                           color: r.status === 'approved' ? colors.successText : r.status === 'rejected' ? colors.dangerText : colors.warningText,
                         }}>{r.status}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </>
+            )
+          })()}
+        </div>
+
+        {/* Claims Summary */}
+        <div style={{ ...styles.card, marginBottom: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', paddingBottom: '12px', borderBottom: `1px solid ${colors.borderLight}`, flexWrap: 'wrap', gap: '10px' }}>
+            <h3 style={{ fontSize: font.base, fontWeight: '700', color: colors.textPrimary, margin: 0 }}>Claims Summary 报销记录</h3>
+            <input type="month" value={claimMonth} onChange={e => setClaimMonth(e.target.value)} style={{ ...styles.input, padding: '6px 10px', fontSize: font.sm, width: 'auto' }} />
+          </div>
+
+          {loadingClaims ? (
+            <p style={{ margin: 0, color: colors.textMuted, fontSize: font.sm }}>Loading...</p>
+          ) : monthlyClaims.length === 0 ? (
+            <p style={{ margin: 0, color: colors.textMuted, fontSize: font.sm }}>No claims in this month.</p>
+          ) : (() => {
+            const approvedByType: Record<string, number> = {}
+            monthlyClaims.filter(c => c.status === 'approved').forEach(c => {
+              const code = claimTypes[c.claim_type_id]?.code || 'OTHERS'
+              approvedByType[code] = (approvedByType[code] || 0) + parseFloat(c.amount || 0)
+            })
+            const totalApprovedAmount = Object.values(approvedByType).reduce((a, b) => a + b, 0)
+            const limitByCode: Record<string, number> = {}
+            Object.entries(claimTypes).forEach(([typeId, t]) => {
+              if (claimLimits[typeId]) limitByCode[t.code] = claimLimits[typeId]
+            })
+            return (
+              <>
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '16px' }}>
+                  <div style={{ padding: '8px 14px', background: colors.successBg, borderRadius: radius.sm }}>
+                    <span style={{ fontSize: font.xs, color: colors.successText, fontWeight: '700' }}>
+                      Approved Total: RM {totalApprovedAmount.toFixed(2)}
+                    </span>
+                  </div>
+                  {Object.entries(approvedByType).map(([code, amount]) => (
+                    <div key={code} style={{ padding: '8px 14px', background: colors.infoBg, borderRadius: radius.sm }}>
+                      <span style={{ fontSize: font.xs, color: colors.infoText, fontWeight: '700' }}>
+                        {code}: RM {amount.toFixed(2)}{limitByCode[code] ? ` / ${limitByCode[code].toFixed(2)}` : ''}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {monthlyClaims.map(c => {
+                    const type = claimTypes[c.claim_type_id]
+                    return (
+                      <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: colors.borderLight, borderRadius: radius.sm, flexWrap: 'wrap', gap: '6px' }}>
+                        <div>
+                          <span style={{ fontSize: font.sm, fontWeight: '600', color: colors.textPrimary }}>{type?.name || 'Claim'}</span>
+                          <span style={{ fontSize: font.xs, color: colors.textMuted, marginLeft: '8px' }}>
+                            {new Date((c.claim_date || c.created_at) + (c.claim_date ? 'T00:00:00' : '')).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}
+                            {c.description ? ` · ${c.description}` : ''}
+                            {' · '}RM {parseFloat(c.amount || 0).toFixed(2)}
+                          </span>
+                        </div>
+                        <span style={{
+                          fontSize: '10px', fontWeight: '700', padding: '3px 10px', borderRadius: radius.full, textTransform: 'capitalize',
+                          background: c.status === 'approved' ? colors.successBg : c.status === 'rejected' ? colors.dangerBg : colors.warningBg,
+                          color: c.status === 'approved' ? colors.successText : c.status === 'rejected' ? colors.dangerText : colors.warningText,
+                        }}>{c.status}</span>
                       </div>
                     )
                   })}
