@@ -43,6 +43,12 @@ export default function EditEmployeePage() {
   })
   const [monthlyClaims, setMonthlyClaims] = useState<any[]>([])
   const [loadingClaims, setLoadingClaims] = useState(false)
+  const [otMonth, setOtMonth] = useState(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  })
+  const [monthlyOt, setMonthlyOt] = useState<any[]>([])
+  const [loadingOt, setLoadingOt] = useState(false)
   const [specialHolidays, setSpecialHolidays] = useState<any[]>([])
   const [newHoliday, setNewHoliday] = useState({ date: '', name: '' })
   const [savingHoliday, setSavingHoliday] = useState(false)
@@ -56,6 +62,7 @@ export default function EditEmployeePage() {
   useEffect(() => { loadClaimTypes() }, [])
   useEffect(() => { if (id) loadClaimLimits() }, [id])
   useEffect(() => { if (id) loadMonthlyClaims() }, [id, claimMonth])
+  useEffect(() => { if (id) loadMonthlyOt() }, [id, otMonth])
 
   async function loadData() {
     const [{ data: profile }, { data: depts }, { data: sups }, { data: bal }, { data: holidays }] = await Promise.all([
@@ -112,6 +119,17 @@ export default function EditEmployeePage() {
       .eq('employee_id', id).eq('year', year).eq('month', month).order('claim_date')
     setMonthlyClaims(data || [])
     setLoadingClaims(false)
+  }
+
+  async function loadMonthlyOt() {
+    setLoadingOt(true)
+    const [y, m] = otMonth.split('-').map(Number)
+    const start = `${otMonth}-01`
+    const end = `${otMonth}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`
+    const { data } = await supabase.from('ot_requests').select('*')
+      .eq('employee_id', id).gte('date', start).lte('date', end).order('date')
+    setMonthlyOt(data || [])
+    setLoadingOt(false)
   }
 
   function notifyLeaveBalance() {
@@ -412,6 +430,64 @@ export default function EditEmployeePage() {
                       </div>
                     )
                   })}
+                </div>
+              </>
+            )
+          })()}
+        </div>
+
+        {/* OT Summary */}
+        <div style={{ ...styles.card, marginBottom: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', paddingBottom: '12px', borderBottom: `1px solid ${colors.borderLight}`, flexWrap: 'wrap', gap: '10px' }}>
+            <h3 style={{ fontSize: font.base, fontWeight: '700', color: colors.textPrimary, margin: 0 }}>OT Summary 加班记录</h3>
+            <input type="month" value={otMonth} onChange={e => setOtMonth(e.target.value)} style={{ ...styles.input, padding: '6px 10px', fontSize: font.sm, width: 'auto' }} />
+          </div>
+
+          {loadingOt ? (
+            <p style={{ margin: 0, color: colors.textMuted, fontSize: font.sm }}>Loading...</p>
+          ) : monthlyOt.length === 0 ? (
+            <p style={{ margin: 0, color: colors.textMuted, fontSize: font.sm }}>No OT requests in this month.</p>
+          ) : (() => {
+            const approved = monthlyOt.filter(r => r.status === 'approved')
+            const totalApprovedHours = approved.reduce((s, r) => s + (r.total_hours || 0), 0)
+            const totalApprovedPay = approved.reduce((s, r) => s + parseFloat(r.ot_pay || 0), 0)
+            return (
+              <>
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '16px' }}>
+                  <div style={{ padding: '8px 14px', background: colors.successBg, borderRadius: radius.sm }}>
+                    <span style={{ fontSize: font.xs, color: colors.successText, fontWeight: '700' }}>
+                      Approved Total: {totalApprovedHours.toFixed(1)}h
+                    </span>
+                  </div>
+                  {totalApprovedPay > 0 && (
+                    <div style={{ padding: '8px 14px', background: colors.infoBg, borderRadius: radius.sm }}>
+                      <span style={{ fontSize: font.xs, color: colors.infoText, fontWeight: '700' }}>
+                        OT Pay: RM {totalApprovedPay.toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {monthlyOt.map(r => (
+                    <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: colors.borderLight, borderRadius: radius.sm, flexWrap: 'wrap', gap: '6px' }}>
+                      <div>
+                        <span style={{ fontSize: font.sm, fontWeight: '600', color: colors.textPrimary }}>
+                          {new Date(r.date + 'T00:00:00').toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}
+                        </span>
+                        <span style={{ fontSize: font.xs, color: colors.textMuted, marginLeft: '8px' }}>
+                          {r.start_time?.slice(0, 5)} – {r.end_time?.slice(0, 5)}
+                          {' · '}{r.total_hours?.toFixed(1)}h
+                          {r.ot_pay ? ` · RM ${parseFloat(r.ot_pay).toFixed(2)}` : ''}
+                        </span>
+                      </div>
+                      <span style={{
+                        fontSize: '10px', fontWeight: '700', padding: '3px 10px', borderRadius: radius.full, textTransform: 'capitalize',
+                        background: r.status === 'approved' ? colors.successBg : r.status === 'rejected' ? colors.dangerBg : colors.warningBg,
+                        color: r.status === 'approved' ? colors.successText : r.status === 'rejected' ? colors.dangerText : colors.warningText,
+                      }}>{r.status}</span>
+                    </div>
+                  ))}
                 </div>
               </>
             )
