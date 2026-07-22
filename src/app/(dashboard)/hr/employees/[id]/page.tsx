@@ -49,6 +49,12 @@ export default function EditEmployeePage() {
   })
   const [monthlyOt, setMonthlyOt] = useState<any[]>([])
   const [loadingOt, setLoadingOt] = useState(false)
+  const [attMonth, setAttMonth] = useState(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  })
+  const [monthlyAttendance, setMonthlyAttendance] = useState<any[]>([])
+  const [loadingAttendance, setLoadingAttendance] = useState(false)
   const [specialHolidays, setSpecialHolidays] = useState<any[]>([])
   const [newHoliday, setNewHoliday] = useState({ date: '', name: '' })
   const [savingHoliday, setSavingHoliday] = useState(false)
@@ -63,6 +69,7 @@ export default function EditEmployeePage() {
   useEffect(() => { if (id) loadClaimLimits() }, [id])
   useEffect(() => { if (id) loadMonthlyClaims() }, [id, claimMonth])
   useEffect(() => { if (id) loadMonthlyOt() }, [id, otMonth])
+  useEffect(() => { if (id) loadMonthlyAttendance() }, [id, attMonth])
 
   async function loadData() {
     const [{ data: profile }, { data: depts }, { data: sups }, { data: bal }, { data: holidays }] = await Promise.all([
@@ -130,6 +137,17 @@ export default function EditEmployeePage() {
       .eq('employee_id', id).gte('date', start).lte('date', end).order('date')
     setMonthlyOt(data || [])
     setLoadingOt(false)
+  }
+
+  async function loadMonthlyAttendance() {
+    setLoadingAttendance(true)
+    const [y, m] = attMonth.split('-').map(Number)
+    const start = `${attMonth}-01`
+    const end = `${attMonth}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`
+    const { data } = await supabase.from('attendance').select('*')
+      .eq('employee_id', id).gte('date', start).lte('date', end).order('date')
+    setMonthlyAttendance(data || [])
+    setLoadingAttendance(false)
   }
 
   function notifyLeaveBalance() {
@@ -486,6 +504,69 @@ export default function EditEmployeePage() {
                         background: r.status === 'approved' ? colors.successBg : r.status === 'rejected' ? colors.dangerBg : colors.warningBg,
                         color: r.status === 'approved' ? colors.successText : r.status === 'rejected' ? colors.dangerText : colors.warningText,
                       }}>{r.status}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )
+          })()}
+        </div>
+
+        {/* Attendance Summary */}
+        <div style={{ ...styles.card, marginBottom: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', paddingBottom: '12px', borderBottom: `1px solid ${colors.borderLight}`, flexWrap: 'wrap', gap: '10px' }}>
+            <h3 style={{ fontSize: font.base, fontWeight: '700', color: colors.textPrimary, margin: 0 }}>Attendance Summary 考勤记录</h3>
+            <input type="month" value={attMonth} onChange={e => setAttMonth(e.target.value)} style={{ ...styles.input, padding: '6px 10px', fontSize: font.sm, width: 'auto' }} />
+          </div>
+
+          {loadingAttendance ? (
+            <p style={{ margin: 0, color: colors.textMuted, fontSize: font.sm }}>Loading...</p>
+          ) : monthlyAttendance.length === 0 ? (
+            <p style={{ margin: 0, color: colors.textMuted, fontSize: font.sm }}>No attendance records in this month.</p>
+          ) : (() => {
+            const counts: Record<string, number> = {}
+            monthlyAttendance.forEach(r => { counts[r.status] = (counts[r.status] || 0) + 1 })
+            const totalHours = monthlyAttendance.reduce((s, r) => s + (r.total_hours || 0), 0)
+            const fmtTime = (t: string | null) => t ? new Date(t).toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kuala_Lumpur' }) : '--:--'
+            const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
+              present: { bg: colors.successBg, color: colors.successText },
+              late: { bg: colors.warningBg, color: colors.warningText },
+              absent: { bg: colors.dangerBg, color: colors.dangerText },
+              'half-day': { bg: colors.infoBg, color: colors.infoText },
+            }
+            return (
+              <>
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '16px' }}>
+                  <div style={{ padding: '8px 14px', background: colors.infoBg, borderRadius: radius.sm }}>
+                    <span style={{ fontSize: font.xs, color: colors.infoText, fontWeight: '700' }}>Total Hours: {totalHours.toFixed(1)}h</span>
+                  </div>
+                  {Object.entries(counts).map(([status, count]) => (
+                    <div key={status} style={{ padding: '8px 14px', background: STATUS_STYLE[status]?.bg || colors.borderLight, borderRadius: radius.sm }}>
+                      <span style={{ fontSize: font.xs, color: STATUS_STYLE[status]?.color || colors.textMuted, fontWeight: '700', textTransform: 'capitalize' }}>
+                        {status}: {count}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {monthlyAttendance.map(r => (
+                    <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: colors.borderLight, borderRadius: radius.sm, flexWrap: 'wrap', gap: '6px' }}>
+                      <div>
+                        <span style={{ fontSize: font.sm, fontWeight: '600', color: colors.textPrimary }}>
+                          {new Date(r.date + 'T00:00:00').toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}
+                        </span>
+                        <span style={{ fontSize: font.xs, color: colors.textMuted, marginLeft: '8px' }}>
+                          {fmtTime(r.clock_in)} – {fmtTime(r.clock_out)}
+                          {r.total_hours ? ` · ${r.total_hours}h` : ''}
+                          {r.notes ? ` · ${r.notes}` : ''}
+                        </span>
+                      </div>
+                      <span style={{
+                        fontSize: '10px', fontWeight: '700', padding: '3px 10px', borderRadius: radius.full, textTransform: 'capitalize',
+                        background: STATUS_STYLE[r.status]?.bg || colors.borderLight,
+                        color: STATUS_STYLE[r.status]?.color || colors.textMuted,
+                      }}>{r.status || 'N/A'}</span>
                     </div>
                   ))}
                 </div>
