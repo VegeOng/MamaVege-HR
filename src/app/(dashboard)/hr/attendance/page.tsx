@@ -1,7 +1,7 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Fragment } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Search, Users, CheckCircle2, Clock, XCircle, RefreshCw } from 'lucide-react'
+import { Search, Users, CheckCircle2, Clock, XCircle, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react'
 import { colors, radius, shadow, styles, font } from '@/lib/design'
 
 const STATUS_STYLE: Record<string, { bg: string; color: string; label: string }> = {
@@ -29,6 +29,7 @@ export default function HRAttendancePage() {
   })
   const [monthlyRecords, setMonthlyRecords] = useState<any[]>([])
   const [loadingMonthly, setLoadingMonthly] = useState(true)
+  const [expandedEmployee, setExpandedEmployee] = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState('all')
   const [search, setSearch] = useState('')
   const supabase = createClient()
@@ -277,32 +278,79 @@ export default function HRAttendancePage() {
                       <tr><td colSpan={7} style={{ textAlign: 'center', padding: '48px', color: colors.textMuted, fontSize: font.base }}>Loading...</td></tr>
                     ) : filteredMonthly.length === 0 ? (
                       <tr><td colSpan={7} style={{ textAlign: 'center', padding: '48px', color: colors.textMuted, fontSize: font.base }}>No records for this month</td></tr>
-                    ) : filteredMonthly.map((s: any) => (
-                      <tr key={s.employee_id} style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
-                        <td style={{ padding: '13px 16px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '11px' }}>
-                            <div style={{
-                              width: '36px', height: '36px', borderRadius: radius.md, flexShrink: 0,
-                              background: 'linear-gradient(135deg, #1B4332, #52B788)',
-                              display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              color: 'white', fontSize: '12px', fontWeight: '700'
-                            }}>
-                              {initials(s.profile?.full_name)}
-                            </div>
-                            <div>
-                              <p style={{ margin: 0, fontSize: font.base, fontWeight: '600', color: colors.textPrimary }}>{s.profile?.full_name || '-'}</p>
-                              <p style={{ margin: 0, fontSize: font.xs, color: colors.textMuted }}>{s.profile?.employee_id || '-'}</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td style={{ padding: '13px 16px', fontSize: font.sm, color: colors.textSecondary }}>{s.profile?.department || '-'}</td>
-                        <td style={{ padding: '13px 16px', fontSize: font.sm, fontWeight: '700', color: colors.successText }}>{s.present}</td>
-                        <td style={{ padding: '13px 16px', fontSize: font.sm, fontWeight: '700', color: colors.warningText }}>{s.late}</td>
-                        <td style={{ padding: '13px 16px', fontSize: font.sm, fontWeight: '700', color: colors.dangerText }}>{s.absent}</td>
-                        <td style={{ padding: '13px 16px', fontSize: font.sm, fontWeight: '700', color: colors.infoText }}>{s.halfDay}</td>
-                        <td style={{ padding: '13px 16px', fontSize: font.sm, fontWeight: '700', color: colors.textPrimary }}>{s.totalHours.toFixed(1)}h</td>
-                      </tr>
-                    ))}
+                    ) : filteredMonthly.map((s: any) => {
+                      const isExpanded = expandedEmployee === s.employee_id
+                      const days = monthlyRecords
+                        .filter(r => r.employee_id === s.employee_id)
+                        .sort((a, b) => a.date.localeCompare(b.date))
+                      return (
+                        <Fragment key={s.employee_id}>
+                          <tr
+                            onClick={() => setExpandedEmployee(isExpanded ? null : s.employee_id)}
+                            style={{ borderBottom: isExpanded ? 'none' : `1px solid ${colors.borderLight}`, cursor: 'pointer', background: isExpanded ? colors.pageBg : 'transparent' }}>
+                            <td style={{ padding: '13px 16px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '11px' }}>
+                                {isExpanded ? <ChevronDown size={14} color={colors.textMuted} /> : <ChevronRight size={14} color={colors.textMuted} />}
+                                <div style={{
+                                  width: '36px', height: '36px', borderRadius: radius.md, flexShrink: 0,
+                                  background: 'linear-gradient(135deg, #1B4332, #52B788)',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  color: 'white', fontSize: '12px', fontWeight: '700'
+                                }}>
+                                  {initials(s.profile?.full_name)}
+                                </div>
+                                <div>
+                                  <p style={{ margin: 0, fontSize: font.base, fontWeight: '600', color: colors.textPrimary }}>{s.profile?.full_name || '-'}</p>
+                                  <p style={{ margin: 0, fontSize: font.xs, color: colors.textMuted }}>{s.profile?.employee_id || '-'}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td style={{ padding: '13px 16px', fontSize: font.sm, color: colors.textSecondary }}>{s.profile?.department || '-'}</td>
+                            <td style={{ padding: '13px 16px', fontSize: font.sm, fontWeight: '700', color: colors.successText }}>{s.present}</td>
+                            <td style={{ padding: '13px 16px', fontSize: font.sm, fontWeight: '700', color: colors.warningText }}>{s.late}</td>
+                            <td style={{ padding: '13px 16px', fontSize: font.sm, fontWeight: '700', color: colors.dangerText }}>{s.absent}</td>
+                            <td style={{ padding: '13px 16px', fontSize: font.sm, fontWeight: '700', color: colors.infoText }}>{s.halfDay}</td>
+                            <td style={{ padding: '13px 16px', fontSize: font.sm, fontWeight: '700', color: colors.textPrimary }}>{s.totalHours.toFixed(1)}h</td>
+                          </tr>
+                          {isExpanded && (
+                            <tr style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
+                              <td colSpan={7} style={{ padding: '0 16px 16px 60px', background: colors.pageBg }}>
+                                <div style={{ background: 'white', borderRadius: radius.md, overflow: 'hidden', border: `1px solid ${colors.borderLight}` }}>
+                                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                    <thead>
+                                      <tr style={{ background: colors.borderLight }}>
+                                        {['Date', 'Check In', 'Check Out', 'Status', 'Hours', 'Notes'].map(h => (
+                                          <th key={h} style={{ padding: '8px 14px', textAlign: 'left', fontSize: '10px', fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{h}</th>
+                                        ))}
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {days.map(r => {
+                                        const st = STATUS_STYLE[r.status] || { bg: colors.borderLight, color: colors.textMuted, label: r.status }
+                                        return (
+                                          <tr key={r.id} style={{ borderTop: `1px solid ${colors.borderLight}` }}>
+                                            <td style={{ padding: '8px 14px', fontSize: font.sm, color: colors.textPrimary, fontWeight: '600' }}>
+                                              {new Date(r.date + 'T00:00:00').toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}
+                                            </td>
+                                            <td style={{ padding: '8px 14px', fontSize: font.sm, color: colors.textSecondary }}>{fmt(r.clock_in)}</td>
+                                            <td style={{ padding: '8px 14px', fontSize: font.sm, color: colors.textSecondary }}>{fmt(r.clock_out)}</td>
+                                            <td style={{ padding: '8px 14px' }}>
+                                              <span style={{ background: st.bg, color: st.color, padding: '2px 9px', borderRadius: radius.full, fontSize: '10px', fontWeight: '700', textTransform: 'capitalize' }}>{st.label}</span>
+                                            </td>
+                                            <td style={{ padding: '8px 14px', fontSize: font.sm, color: colors.textSecondary }}>{r.total_hours ? `${r.total_hours}h` : '-'}</td>
+                                            <td style={{ padding: '8px 14px', fontSize: font.sm, color: colors.textMuted }}>{r.notes || '-'}</td>
+                                          </tr>
+                                        )
+                                      })}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
