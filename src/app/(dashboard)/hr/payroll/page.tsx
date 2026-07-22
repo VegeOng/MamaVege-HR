@@ -7,6 +7,7 @@ import { generateWhatsAppLink } from '@/lib/utils'
 
 export default function HRPayrollPage() {
   const [employees, setEmployees] = useState<any[]>([])
+  const [otPayMap, setOtPayMap] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [rates, setRates] = useState({ epf: 11, socso: 0.5, eis: 0.2 })
@@ -20,10 +21,14 @@ export default function HRPayrollPage() {
 
   async function loadData() {
     setLoading(true)
-    const [empRes, settingsRes] = await Promise.all([
+    const [y, m] = month.split('-').map(Number)
+    const start = `${month}-01`
+    const end = `${month}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`
+    const [empRes, settingsRes, otRes] = await Promise.all([
       supabase.from('profiles').select('id, full_name, employee_id, department, position, basic_salary, bank_account, bank_name, whatsapp_number')
         .eq('is_active', true).order('employee_id'),
       supabase.from('company_settings').select('key, value').in('key', ['epf_employee_rate', 'socso_employee_rate', 'eis_rate']),
+      supabase.from('ot_requests').select('employee_id, ot_pay').eq('status', 'approved').gte('date', start).lte('date', end),
     ])
     setEmployees(empRes.data || [])
     const s: any = {}
@@ -33,21 +38,25 @@ export default function HRPayrollPage() {
       socso: s.socso_employee_rate ?? 0.5,
       eis: s.eis_rate ?? 0.2,
     })
+    const otMap: Record<string, number> = {}
+    for (const r of otRes.data || []) otMap[r.employee_id] = (otMap[r.employee_id] || 0) + parseFloat(r.ot_pay || 0)
+    setOtPayMap(otMap)
     setLoading(false)
   }
 
-  function calc(salary: number) {
+  function calc(salary: number, otPay: number = 0) {
     const epf = salary * (rates.epf / 100)
     const socso = Math.min(salary, 4000) * (rates.socso / 100)
     const eis = Math.min(salary, 4000) * (rates.eis / 100)
     const deductions = epf + socso + eis
-    return { epf, socso, eis, deductions, net: salary - deductions }
+    const gross = salary + otPay
+    return { epf, socso, eis, deductions, gross, net: gross - deductions }
   }
 
   function notifyPayslip(e: any) {
     const phone = e.whatsapp_number
     if (!phone) return
-    const c = calc(e.basic_salary || 0)
+    const c = calc(e.basic_salary || 0, otPayMap[e.id] || 0)
     const msgText = `Hi ${e.full_name}, your payslip for ${monthLabel} is ready. Net pay: RM ${c.net.toFixed(2)}. Please check the MamaVege HR system for details.`
     window.open(generateWhatsAppLink(phone, msgText), '_blank')
   }
@@ -60,8 +69,9 @@ export default function HRPayrollPage() {
   )
 
   const totalSalary = filtered.reduce((sum, e) => sum + (e.basic_salary || 0), 0)
+  const totalOtPay = filtered.reduce((sum, e) => sum + (otPayMap[e.id] || 0), 0)
   const totalDeductions = filtered.reduce((sum, e) => sum + calc(e.basic_salary || 0).deductions, 0)
-  const totalNet = totalSalary - totalDeductions
+  const totalNet = filtered.reduce((sum, e) => sum + calc(e.basic_salary || 0, otPayMap[e.id] || 0).net, 0)
 
   const monthLabel = new Date(month + '-01').toLocaleDateString('en-MY', { month: 'long', year: 'numeric' })
 
@@ -122,18 +132,19 @@ export default function HRPayrollPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: colors.pageBg, borderBottom: `1px solid ${colors.borderLight}` }}>
-                  {['Employee', 'Department', 'Basic Salary', `EPF (${rates.epf}%)`, `SOCSO (${rates.socso}%)`, `EIS (${rates.eis}%)`, 'Net Pay', 'Bank', ''].map(h => (
+                  {['Employee', 'Department', 'Basic Salary', 'OT Pay', `EPF (${rates.epf}%)`, `SOCSO (${rates.socso}%)`, `EIS (${rates.eis}%)`, 'Net Pay', 'Bank', ''].map(h => (
                     <th key={h} style={{ padding: '12px 16px', textAlign: 'left', fontSize: font.xs, fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: colors.textMuted }}>Loading...</td></tr>
+                  <tr><td colSpan={10} style={{ textAlign: 'center', padding: '40px', color: colors.textMuted }}>Loading...</td></tr>
                 ) : filtered.length === 0 ? (
-                  <tr><td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: colors.textMuted }}>No employees found</td></tr>
+                  <tr><td colSpan={10} style={{ textAlign: 'center', padding: '40px', color: colors.textMuted }}>No employees found</td></tr>
                 ) : filtered.map(e => {
-                  const c = calc(e.basic_salary || 0)
+                  const otPay = otPayMap[e.id] || 0
+                  const c = calc(e.basic_salary || 0, otPay)
                   return (
                     <tr key={e.id} style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
                       <td style={{ padding: '12px 16px' }}>
@@ -142,6 +153,7 @@ export default function HRPayrollPage() {
                       </td>
                       <td style={{ padding: '12px 16px', fontSize: font.sm, color: colors.textSecondary }}>{e.department || '-'}</td>
                       <td style={{ padding: '12px 16px', fontSize: font.sm, fontWeight: '700', color: colors.textPrimary }}>RM {(e.basic_salary || 0).toFixed(2)}</td>
+                      <td style={{ padding: '12px 16px', fontSize: font.sm, fontWeight: '700', color: otPay > 0 ? colors.successText : colors.textMuted }}>{otPay > 0 ? `RM ${otPay.toFixed(2)}` : '-'}</td>
                       <td style={{ padding: '12px 16px', fontSize: font.sm, color: colors.dangerText }}>- {c.epf.toFixed(2)}</td>
                       <td style={{ padding: '12px 16px', fontSize: font.sm, color: colors.dangerText }}>- {c.socso.toFixed(2)}</td>
                       <td style={{ padding: '12px 16px', fontSize: font.sm, color: colors.dangerText }}>- {c.eis.toFixed(2)}</td>
@@ -171,6 +183,7 @@ export default function HRPayrollPage() {
                   <tr style={{ background: colors.pageBg, borderTop: `2px solid ${colors.border}` }}>
                     <td colSpan={2} style={{ padding: '12px 16px', fontSize: font.sm, fontWeight: '800', color: colors.textPrimary }}>Total</td>
                     <td style={{ padding: '12px 16px', fontSize: font.sm, fontWeight: '800', color: colors.textPrimary }}>RM {totalSalary.toFixed(2)}</td>
+                    <td style={{ padding: '12px 16px', fontSize: font.sm, fontWeight: '800', color: colors.textPrimary }}>RM {totalOtPay.toFixed(2)}</td>
                     <td colSpan={3} style={{ padding: '12px 16px', fontSize: font.sm, fontWeight: '800', color: colors.dangerText }}>- {totalDeductions.toFixed(2)}</td>
                     <td style={{ padding: '12px 16px', fontSize: font.sm, fontWeight: '800', color: colors.successText }}>RM {totalNet.toFixed(2)}</td>
                     <td></td>

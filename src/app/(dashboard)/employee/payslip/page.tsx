@@ -14,6 +14,7 @@ export default function EmployeePayslipPage() {
   const [leaveBalances, setLeaveBalances] = useState<any[]>([])
   const [claims, setClaims] = useState<any[]>([])
   const [claimLimits, setClaimLimits] = useState<any[]>([])
+  const [otRequests, setOtRequests] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
   const [selectedMonth, setSelectedMonth] = useState(() => {
@@ -27,17 +28,19 @@ export default function EmployeePayslipPage() {
   async function loadData() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    const [{ data: profileData }, { data: settings }, { data: leaveBal }, { data: claimsData }, { data: limits }] = await Promise.all([
+    const [{ data: profileData }, { data: settings }, { data: leaveBal }, { data: claimsData }, { data: limits }, { data: otData }] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', user.id).single(),
       supabase.from('company_settings').select('key,value').in('key', ['epf_employee_rate', 'socso_employee_rate', 'eis_rate']),
       supabase.from('leave_entitlements').select('*, leave_type:leave_types(name, code)').eq('employee_id', user.id).eq('year', new Date().getFullYear()),
       supabase.from('claims').select('*, claim_type:claim_types(name, code)').eq('employee_id', user.id),
       supabase.from('claim_limits').select('*').eq('employee_id', user.id),
+      supabase.from('ot_requests').select('*').eq('employee_id', user.id).eq('status', 'approved'),
     ])
     setProfile(profileData)
     setLeaveBalances(leaveBal || [])
     setClaims(claimsData || [])
     setClaimLimits(limits || [])
+    setOtRequests(otData || [])
     if (settings) {
       const s: Record<string, string> = Object.fromEntries(settings.map((r: any) => [r.key, r.value]))
       setRates({
@@ -72,9 +75,19 @@ export default function EmployeePayslipPage() {
   const eis = Math.round(Math.min(salary, 4000) * (rates.eis / 100) * 100) / 100
   const pcb = 0
   const totalDeductions = epf + socso + eis + pcb
-  const netSalary = salary - totalDeductions
   const [year, month] = selectedMonth.split('-').map(Number)
   const monthLabel = new Date(year, month - 1, 1).toLocaleDateString('en-MY', { month: 'long', year: 'numeric' })
+
+  // Approved OT for the selected month (OT is excluded from EPF/SOCSO/EIS wage base)
+  const monthOt = otRequests.filter(r => {
+    const d = new Date(r.date + 'T00:00:00')
+    return d.getFullYear() === year && d.getMonth() + 1 === month
+  })
+  const otHours = monthOt.reduce((s, r) => s + (r.total_hours || 0), 0)
+  const otPay = monthOt.reduce((s, r) => s + parseFloat(r.ot_pay || 0), 0)
+
+  const totalEarnings = salary + otPay
+  const netSalary = totalEarnings - totalDeductions
 
   // Leave balances (current year)
   const leaveRows = leaveBalances
@@ -166,9 +179,15 @@ export default function EmployeePayslipPage() {
                   <span style={{ fontSize: '14px', color: colors.textSecondary }}>Basic Salary</span>
                   <span style={{ fontSize: '14px', color: colors.textPrimary, fontWeight: '700' }}>{rm(salary)}</span>
                 </div>
+                {otPay > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: `1px solid ${colors.borderLight}` }}>
+                    <span style={{ fontSize: '14px', color: colors.textSecondary }}>Overtime ({otHours.toFixed(1)}h)</span>
+                    <span style={{ fontSize: '14px', color: colors.textPrimary, fontWeight: '700' }}>{rm(otPay)}</span>
+                  </div>
+                )}
                 <div style={{ marginTop: '12px', padding: '12px 14px', background: colors.successBg, borderRadius: '10px', display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ fontSize: '13px', fontWeight: '700', color: colors.successText }}>Total Earnings</span>
-                  <span style={{ fontSize: '13px', fontWeight: '800', color: colors.successText }}>{rm(salary)}</span>
+                  <span style={{ fontSize: '13px', fontWeight: '800', color: colors.successText }}>{rm(totalEarnings)}</span>
                 </div>
               </div>
               <div>
@@ -187,7 +206,7 @@ export default function EmployeePayslipPage() {
             <div style={{ marginTop: '24px', padding: '20px 24px', background: 'linear-gradient(135deg, #F0FDF4, #DCFCE7)', borderRadius: '14px', border: '1px solid #BBF7D0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <p style={{ margin: '0 0 2px', fontSize: '12px', fontWeight: '700', color: '#15803D', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Net Pay (Take-Home)</p>
-                <p style={{ margin: 0, fontSize: '12px', color: '#4ADE80' }}>{rm(salary)} − {rm(totalDeductions)}</p>
+                <p style={{ margin: 0, fontSize: '12px', color: '#4ADE80' }}>{rm(totalEarnings)} − {rm(totalDeductions)}</p>
               </div>
               <p style={{ margin: 0, fontSize: '28px', fontWeight: '800', color: '#15803D', letterSpacing: '-0.5px' }}>{rm(netSalary)}</p>
             </div>
