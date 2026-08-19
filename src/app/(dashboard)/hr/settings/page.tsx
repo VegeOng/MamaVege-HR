@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Save, ChevronDown, ChevronUp, Percent, MapPin, LocateFixed } from 'lucide-react'
+import { Save, ChevronDown, ChevronUp, Percent, MapPin, LocateFixed, Wifi } from 'lucide-react'
 import { colors, radius, shadow, styles, font } from '@/lib/design'
 
 const CLAIM_TYPES = [
@@ -42,6 +42,8 @@ export default function HRSettingsPage() {
   const [officeRadius, setOfficeRadius] = useState('200')
   const [savingLocation, setSavingLocation] = useState(false)
   const [locating, setLocating] = useState(false)
+  const [officeIp, setOfficeIp] = useState('')
+  const [detectingIp, setDetectingIp] = useState(false)
 
   const supabase = createClient()
 
@@ -58,7 +60,7 @@ export default function HRSettingsPage() {
     const [empRes, limitsRes, ratesRes] = await Promise.all([
       supabase.from('profiles').select('id, full_name, employee_id, department').eq('is_active', true).neq('role', 'director').order('full_name'),
       supabase.from('claim_limits').select('*'),
-      supabase.from('company_settings').select('key,value').in('key', ['epf_employee_rate', 'socso_employee_rate', 'eis_rate', 'office_lat', 'office_lng', 'office_radius_m']),
+      supabase.from('company_settings').select('key,value').in('key', ['epf_employee_rate', 'socso_employee_rate', 'eis_rate', 'office_lat', 'office_lng', 'office_radius_m', 'office_public_ip']),
     ])
     setEmployees(empRes.data || [])
 
@@ -77,6 +79,7 @@ export default function HRSettingsPage() {
       if (s.office_lat) setOfficeLat(s.office_lat)
       if (s.office_lng) setOfficeLng(s.office_lng)
       if (s.office_radius_m) setOfficeRadius(s.office_radius_m)
+      if (s.office_public_ip) setOfficeIp(s.office_public_ip)
     }
     setLoading(false)
   }
@@ -143,12 +146,26 @@ export default function HRSettingsPage() {
     )
   }
 
+  async function handleDetectIp() {
+    setDetectingIp(true)
+    try {
+      const res = await fetch('/api/attendance/verify-ip')
+      const data = await res.json()
+      if (data.ip) setOfficeIp(data.ip)
+      else setMsg({ type: 'error', text: 'Could not detect an IP address.' })
+    } catch {
+      setMsg({ type: 'error', text: 'Could not detect an IP address.' })
+    }
+    setDetectingIp(false)
+  }
+
   async function handleSaveLocation() {
     setSavingLocation(true); setMsg(null)
     const upserts = [
       { key: 'office_lat', value: officeLat, description: 'Office latitude for clock-in geofencing' },
       { key: 'office_lng', value: officeLng, description: 'Office longitude for clock-in geofencing' },
       { key: 'office_radius_m', value: officeRadius, description: 'Allowed clock-in radius from office, in meters' },
+      { key: 'office_public_ip', value: officeIp, description: 'Office public IP(s), comma-separated, for WiFi clock-in verification' },
     ]
     const { error } = await supabase.from('company_settings').upsert(upserts, { onConflict: 'key' })
     if (error) setMsg({ type: 'error', text: error.message })
@@ -331,9 +348,29 @@ export default function HRSettingsPage() {
               </p>
             )}
 
+            <div style={{ borderTop: `1px solid ${colors.borderLight}`, paddingTop: '20px', marginTop: '4px', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: 'linear-gradient(135deg, #1B4332, #52B788)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Wifi size={15} color="white" />
+                </div>
+                <h2 style={{ fontSize: font.lg, fontWeight: '700', color: colors.textPrimary, margin: 0 }}>Office Network (IP) 网络验证</h2>
+              </div>
+              <p style={{ fontSize: font.sm, color: colors.textMuted, margin: '0 0 16px' }}>
+                Browsers can't read the connected WiFi's name for privacy reasons, so this checks the office internet's public IP address instead — only works if your office broadband has a fixed IP. Adds a second check on top of the GPS range above; both must pass to clock in. Leave blank to skip this check.
+              </p>
+              <label style={{ display: 'block', fontSize: font.xs, fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '6px' }}>Office Public IP(s)</label>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <input value={officeIp} onChange={e => setOfficeIp(e.target.value)} placeholder="e.g. 175.136.xxx.xxx (comma-separate multiple)" style={{ ...styles.input, flex: 1 }} />
+                <button onClick={handleDetectIp} disabled={detectingIp} style={{ ...styles.outlineButton, display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', opacity: detectingIp ? 0.6 : 1 }}>
+                  <Wifi size={14} />{detectingIp ? 'Detecting...' : 'Detect My Current IP'}
+                </button>
+              </div>
+              <p style={{ margin: '6px 0 0', fontSize: '11px', color: colors.textMuted }}>Click this while connected to the office WiFi to fill in its current public IP.</p>
+            </div>
+
             <button onClick={handleSaveLocation} disabled={savingLocation}
               style={{ ...styles.primaryButton, opacity: savingLocation ? 0.6 : 1, display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Save size={15} />{savingLocation ? 'Saving...' : 'Save Office Location'}
+              <Save size={15} />{savingLocation ? 'Saving...' : 'Save Attendance Settings'}
             </button>
           </div>
         )}

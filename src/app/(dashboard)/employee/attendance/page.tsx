@@ -134,13 +134,28 @@ export default function AttendancePage() {
         return
       }
       navigator.geolocation.getCurrentPosition(
-        pos => {
+        async pos => {
           const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude }
           setLocation(loc)
           if (needsGeofence && officeLocation) {
             const dist = distanceMeters(loc.lat, loc.lng, officeLocation.lat, officeLocation.lng)
             if (dist > officeLocation.radius) {
               setMessage({ type: 'error', text: `You are ${Math.round(dist)}m from the office. You must be within ${officeLocation.radius}m to clock in.` })
+              setLoading(false)
+              return
+            }
+          }
+          if (needsGeofence) {
+            try {
+              const ipRes = await fetch('/api/attendance/verify-ip', { method: 'POST' })
+              const ipData = await ipRes.json()
+              if (ipData.configured && !ipData.matches) {
+                setMessage({ type: 'error', text: 'You must be connected to the office WiFi network to clock in.' })
+                setLoading(false)
+                return
+              }
+            } catch {
+              setMessage({ type: 'error', text: 'Could not verify network. Please try again.' })
               setLoading(false)
               return
             }
@@ -493,7 +508,7 @@ export default function AttendancePage() {
             </p>
             {profile?.clock_in_method === 'wifi' && officeLocation && (
               <p style={{ margin: '0 0 12px', fontSize: font.xs, color: colors.successText, fontWeight: '600' }}>
-                ✓ Location verified — within office range
+                ✓ Location & network verified
               </p>
             )}
 
