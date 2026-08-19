@@ -4,6 +4,15 @@ import { createClient } from '@/lib/supabase/client'
 import { CheckCircle, AlertCircle, MapPin, Wifi, Shield, Fingerprint, Settings2 } from 'lucide-react'
 import { colors, radius, shadow, styles, font } from '@/lib/design'
 
+function distanceMeters(lat1: number, lng1: number, lat2: number, lng2: number) {
+  const R = 6371000
+  const toRad = (v: number) => v * Math.PI / 180
+  const dLat = toRad(lat2 - lat1)
+  const dLng = toRad(lng2 - lng1)
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
 export default function AttendancePage() {
   const [profile, setProfile] = useState<any>(null)
   const [todayRecord, setTodayRecord] = useState<any>(null)
@@ -21,6 +30,7 @@ export default function AttendancePage() {
   const [showFingerprintSetup, setShowFingerprintSetup] = useState(false)
   const [deviceName, setDeviceName] = useState('My Phone')
   const [remark, setRemark] = useState('')
+  const [officeLocation, setOfficeLocation] = useState<{ lat: number, lng: number, radius: number } | null>(null)
   const supabase = createClient()
 
   useEffect(() => {
@@ -47,6 +57,12 @@ export default function AttendancePage() {
 
     const { data: fpCreds } = await supabase.from('webauthn_credentials').select('id').eq('user_id', user.id).neq('credential_id', `__pending__${user.id}`)
     setHasFingerprint((fpCreds || []).length > 0)
+
+    const { data: settings } = await supabase.from('company_settings').select('key,value').in('key', ['office_lat', 'office_lng', 'office_radius_m'])
+    const s: Record<string, string> = Object.fromEntries((settings || []).map((r: any) => [r.key, r.value]))
+    if (s.office_lat && s.office_lng) {
+      setOfficeLocation({ lat: parseFloat(s.office_lat), lng: parseFloat(s.office_lng), radius: parseFloat(s.office_radius_m || '200') })
+    }
   }
 
   async function handleSetPin() {
@@ -104,10 +120,42 @@ export default function AttendancePage() {
     await supabase.from('profiles').update({ pin_attempts: 0 }).eq('id', user!.id)
     setPinAttempts(0)
 
-    if (profile?.clock_in_method === 'gps' || profile?.clock_in_method === 'both') {
+    const needsGps = profile?.clock_in_method === 'gps' || profile?.clock_in_method === 'both'
+    const needsGeofence = profile?.clock_in_method === 'wifi' && officeLocation
+
+    if (needsGps || needsGeofence) {
+      if (!navigator.geolocation) {
+        if (needsGeofence) {
+          setMessage({ type: 'error', text: 'This device does not support location services, which are required to clock in.' })
+          setLoading(false)
+          return
+        }
+        setStep('verify'); setLoading(false)
+        return
+      }
       navigator.geolocation.getCurrentPosition(
-        pos => { setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setStep('verify'); setLoading(false) },
-        () => { setStep('verify'); setLoading(false) }
+        pos => {
+          const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude }
+          setLocation(loc)
+          if (needsGeofence && officeLocation) {
+            const dist = distanceMeters(loc.lat, loc.lng, officeLocation.lat, officeLocation.lng)
+            if (dist > officeLocation.radius) {
+              setMessage({ type: 'error', text: `You are ${Math.round(dist)}m from the office. You must be within ${officeLocation.radius}m to clock in.` })
+              setLoading(false)
+              return
+            }
+          }
+          setStep('verify'); setLoading(false)
+        },
+        () => {
+          if (needsGeofence) {
+            setMessage({ type: 'error', text: 'Location permission is required to clock in. Please enable location access and try again.' })
+            setLoading(false)
+            return
+          }
+          setStep('verify'); setLoading(false)
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
       )
     } else {
       setStep('verify')
@@ -440,9 +488,14 @@ export default function AttendancePage() {
               {profile?.clock_in_method === 'wifi' ? <Wifi size={26} color="#059669" /> : <MapPin size={26} color="#059669" />}
             </div>
             <h3 style={{ margin: '0 0 6px', fontSize: font.lg, fontWeight: '700', color: colors.textPrimary }}>PIN Verified ✓</h3>
-            <p style={{ margin: '0 0 16px', fontSize: font.base, color: colors.textMuted }}>
+            <p style={{ margin: '0 0 4px', fontSize: font.base, color: colors.textMuted }}>
               {todayRecord?.clock_in ? 'Ready to clock out?' : 'Ready to clock in?'}
             </p>
+            {profile?.clock_in_method === 'wifi' && officeLocation && (
+              <p style={{ margin: '0 0 12px', fontSize: font.xs, color: colors.successText, fontWeight: '600' }}>
+                ✓ Location verified — within office range
+              </p>
+            )}
 
             {/* Remark */}
             <div style={{ textAlign: 'left', marginBottom: '20px' }}>

@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Save, ChevronDown, ChevronUp, Percent } from 'lucide-react'
+import { Save, ChevronDown, ChevronUp, Percent, MapPin, LocateFixed } from 'lucide-react'
 import { colors, radius, shadow, styles, font } from '@/lib/design'
 
 const CLAIM_TYPES = [
@@ -11,7 +11,7 @@ const CLAIM_TYPES = [
   { id: '1cd2ff61-0748-44b6-8230-66bad0e0ea96', name: 'Hotel', period: 'Monthly' },
 ]
 
-type Tab = 'profile' | 'claims' | 'payroll'
+type Tab = 'profile' | 'claims' | 'payroll' | 'attendance'
 
 export default function HRSettingsPage() {
   const [tab, setTab] = useState<Tab>('profile')
@@ -36,6 +36,13 @@ export default function HRSettingsPage() {
   const [eisRate, setEisRate] = useState('0.2')
   const [savingRates, setSavingRates] = useState(false)
 
+  // Office location (geofencing)
+  const [officeLat, setOfficeLat] = useState('')
+  const [officeLng, setOfficeLng] = useState('')
+  const [officeRadius, setOfficeRadius] = useState('200')
+  const [savingLocation, setSavingLocation] = useState(false)
+  const [locating, setLocating] = useState(false)
+
   const supabase = createClient()
 
   useEffect(() => { loadData() }, [])
@@ -51,7 +58,7 @@ export default function HRSettingsPage() {
     const [empRes, limitsRes, ratesRes] = await Promise.all([
       supabase.from('profiles').select('id, full_name, employee_id, department').eq('is_active', true).neq('role', 'director').order('full_name'),
       supabase.from('claim_limits').select('*'),
-      supabase.from('company_settings').select('key,value').in('key', ['epf_employee_rate', 'socso_employee_rate', 'eis_rate']),
+      supabase.from('company_settings').select('key,value').in('key', ['epf_employee_rate', 'socso_employee_rate', 'eis_rate', 'office_lat', 'office_lng', 'office_radius_m']),
     ])
     setEmployees(empRes.data || [])
 
@@ -67,6 +74,9 @@ export default function HRSettingsPage() {
       if (s.epf_employee_rate) setEpfRate(s.epf_employee_rate)
       if (s.socso_employee_rate) setSocsoRate(s.socso_employee_rate)
       if (s.eis_rate) setEisRate(s.eis_rate)
+      if (s.office_lat) setOfficeLat(s.office_lat)
+      if (s.office_lng) setOfficeLng(s.office_lng)
+      if (s.office_radius_m) setOfficeRadius(s.office_radius_m)
     }
     setLoading(false)
   }
@@ -119,6 +129,34 @@ export default function HRSettingsPage() {
     setTimeout(() => setMsg(null), 3000)
   }
 
+  function handleLocateMe() {
+    if (!navigator.geolocation) { setMsg({ type: 'error', text: 'This browser does not support geolocation.' }); return }
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        setOfficeLat(pos.coords.latitude.toFixed(6))
+        setOfficeLng(pos.coords.longitude.toFixed(6))
+        setLocating(false)
+      },
+      err => { setMsg({ type: 'error', text: `Could not get location: ${err.message}` }); setLocating(false) },
+      { enableHighAccuracy: true, timeout: 10000 }
+    )
+  }
+
+  async function handleSaveLocation() {
+    setSavingLocation(true); setMsg(null)
+    const upserts = [
+      { key: 'office_lat', value: officeLat, description: 'Office latitude for clock-in geofencing' },
+      { key: 'office_lng', value: officeLng, description: 'Office longitude for clock-in geofencing' },
+      { key: 'office_radius_m', value: officeRadius, description: 'Allowed clock-in radius from office, in meters' },
+    ]
+    const { error } = await supabase.from('company_settings').upsert(upserts, { onConflict: 'key' })
+    if (error) setMsg({ type: 'error', text: error.message })
+    else setMsg({ type: 'success', text: 'Office location saved! WiFi-method employees must now be within range to clock in.' })
+    setSavingLocation(false)
+    setTimeout(() => setMsg(null), 4000)
+  }
+
   if (loading) return <div style={{ padding: '32px', color: colors.textMuted }}>Loading...</div>
 
   return (
@@ -133,7 +171,7 @@ export default function HRSettingsPage() {
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: '4px', borderBottom: `2px solid ${colors.border}`, marginBottom: '24px' }}>
-          {([['profile', 'My Profile'], ['claims', 'Claims Limits 报销额度'], ['payroll', 'Payroll Rates 薪资费率']] as [Tab, string][]).map(([id, label]) => (
+          {([['profile', 'My Profile'], ['claims', 'Claims Limits 报销额度'], ['payroll', 'Payroll Rates 薪资费率'], ['attendance', 'Attendance 考勤设置']] as [Tab, string][]).map(([id, label]) => (
             <button key={id} onClick={() => setTab(id)} style={{
               padding: '10px 18px', fontSize: font.base, fontWeight: tab === id ? '700' : '400',
               color: tab === id ? colors.primary : colors.textMuted,
@@ -249,6 +287,53 @@ export default function HRSettingsPage() {
             <button onClick={handleSaveRates} disabled={savingRates}
               style={{ ...styles.primaryButton, opacity: savingRates ? 0.6 : 1, display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Save size={15} />{savingRates ? 'Saving...' : 'Save Rates'}
+            </button>
+          </div>
+        )}
+
+        {/* Attendance Tab */}
+        {tab === 'attendance' && (
+          <div style={{ ...styles.card }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+              <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: 'linear-gradient(135deg, #1B4332, #52B788)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <MapPin size={15} color="white" />
+              </div>
+              <h2 style={{ fontSize: font.lg, fontWeight: '700', color: colors.textPrimary, margin: 0 }}>Office Location 打卡范围</h2>
+            </div>
+            <p style={{ fontSize: font.sm, color: colors.textMuted, margin: '0 0 24px' }}>
+              Employees with clock-in method "WiFi (Office Staff)" must be within this radius to clock in. Employees on "GPS (Field Staff)" or "Both" are not restricted — their location is only recorded for reference. Leave blank to disable this check entirely.
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '16px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: font.xs, fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '6px' }}>Latitude</label>
+                <input type="number" step="0.000001" value={officeLat} onChange={e => setOfficeLat(e.target.value)} placeholder="e.g. 3.139003" style={{ ...styles.input }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: font.xs, fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '6px' }}>Longitude</label>
+                <input type="number" step="0.000001" value={officeLng} onChange={e => setOfficeLng(e.target.value)} placeholder="e.g. 101.686855" style={{ ...styles.input }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: font.xs, fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '6px' }}>Allowed Radius (meters)</label>
+                <input type="number" min="20" step="10" value={officeRadius} onChange={e => setOfficeRadius(e.target.value)} placeholder="200" style={{ ...styles.input }} />
+              </div>
+            </div>
+
+            <button onClick={handleLocateMe} disabled={locating} style={{ ...styles.outlineButton, display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '20px', opacity: locating ? 0.6 : 1 }}>
+              <LocateFixed size={14} />{locating ? 'Getting location...' : 'Use My Current Location'}
+            </button>
+
+            {officeLat && officeLng && (
+              <p style={{ margin: '-12px 0 20px', fontSize: '12px' }}>
+                <a href={`https://www.google.com/maps?q=${officeLat},${officeLng}`} target="_blank" rel="noreferrer" style={{ color: colors.info }}>
+                  View this location on Google Maps ↗
+                </a>
+              </p>
+            )}
+
+            <button onClick={handleSaveLocation} disabled={savingLocation}
+              style={{ ...styles.primaryButton, opacity: savingLocation ? 0.6 : 1, display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Save size={15} />{savingLocation ? 'Saving...' : 'Save Office Location'}
             </button>
           </div>
         )}
