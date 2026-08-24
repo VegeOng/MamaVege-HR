@@ -1,7 +1,8 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Save, ChevronDown, ChevronUp, Percent, MapPin, LocateFixed, Wifi } from 'lucide-react'
+import { Save, ChevronDown, ChevronUp, Percent, MapPin, LocateFixed, Wifi, Download, QrCode } from 'lucide-react'
+import QRCode from 'qrcode'
 import { colors, radius, shadow, styles, font } from '@/lib/design'
 
 const CLAIM_TYPES = [
@@ -44,10 +45,27 @@ export default function HRSettingsPage() {
   const [locating, setLocating] = useState(false)
   const [officeIp, setOfficeIp] = useState('')
   const [detectingIp, setDetectingIp] = useState(false)
+  const [clockInUrl, setClockInUrl] = useState('')
+  const [qrDataUrl, setQrDataUrl] = useState('')
 
   const supabase = createClient()
 
   useEffect(() => { loadData() }, [])
+
+  useEffect(() => {
+    const url = `${window.location.origin}/employee/attendance`
+    setClockInUrl(url)
+    QRCode.toDataURL(url, { width: 320, margin: 2, color: { dark: '#1B4332', light: '#FFFFFF' } })
+      .then(setQrDataUrl)
+      .catch(() => {})
+  }, [])
+
+  function handleDownloadQr() {
+    const a = document.createElement('a')
+    a.href = qrDataUrl
+    a.download = 'mamavege-clockin-qr.png'
+    a.click()
+  }
 
   async function loadData() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -310,6 +328,33 @@ export default function HRSettingsPage() {
 
         {/* Attendance Tab */}
         {tab === 'attendance' && (
+          <>
+          <div style={{ ...styles.card, marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+              <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: 'linear-gradient(135deg, #1B4332, #52B788)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <QrCode size={15} color="white" />
+              </div>
+              <h2 style={{ fontSize: font.lg, fontWeight: '700', color: colors.textPrimary, margin: 0 }}>Clock-In QR Code 打卡二维码</h2>
+            </div>
+            <p style={{ fontSize: font.sm, color: colors.textMuted, margin: '0 0 20px' }}>
+              Print this and put it up at the office entrance so employees can scan to open the clock-in page instead of using a link. It only opens the page — the GPS range and office network checks below still apply, so scanning it from home won't let anyone clock in.
+            </p>
+            <div style={{ display: 'flex', gap: '24px', alignItems: 'center', flexWrap: 'wrap' }}>
+              {qrDataUrl ? (
+                <img src={qrDataUrl} alt="Clock-in QR code" style={{ width: '160px', height: '160px', borderRadius: radius.md, border: `1px solid ${colors.borderLight}` }} />
+              ) : (
+                <div style={{ width: '160px', height: '160px', borderRadius: radius.md, background: colors.borderLight }} />
+              )}
+              <div>
+                <p style={{ margin: '0 0 10px', fontSize: font.xs, color: colors.textMuted, wordBreak: 'break-all' }}>{clockInUrl}</p>
+                <button onClick={handleDownloadQr} disabled={!qrDataUrl}
+                  style={{ ...styles.primaryButton, display: 'flex', alignItems: 'center', gap: '6px', opacity: qrDataUrl ? 1 : 0.5 }}>
+                  <Download size={15} />Download PNG
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div style={{ ...styles.card }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
               <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: 'linear-gradient(135deg, #1B4332, #52B788)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -373,6 +418,7 @@ export default function HRSettingsPage() {
               <Save size={15} />{savingLocation ? 'Saving...' : 'Save Attendance Settings'}
             </button>
           </div>
+          </>
         )}
 
         {/* Claims Limits Tab */}
