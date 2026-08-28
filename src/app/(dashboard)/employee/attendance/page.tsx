@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { CheckCircle, AlertCircle, MapPin, Wifi, Shield, Fingerprint, Settings2 } from 'lucide-react'
+import { CheckCircle, AlertCircle, MapPin, Wifi } from 'lucide-react'
 import { colors, radius, shadow, styles, font } from '@/lib/design'
 
 function distanceMeters(lat1: number, lng1: number, lat2: number, lng2: number) {
@@ -13,24 +13,19 @@ function distanceMeters(lat1: number, lng1: number, lat2: number, lng2: number) 
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
+type OfficeLocation = { lat: number, lng: number, radius: number }
+
 export default function AttendancePage() {
   const [profile, setProfile] = useState<any>(null)
   const [todayRecord, setTodayRecord] = useState<any>(null)
-  const [pin, setPin] = useState('')
-  const [confirmPin, setConfirmPin] = useState('')
-  const [pinAttempts, setPinAttempts] = useState(0)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
-  const [step, setStep] = useState<'setup' | 'setup_confirm' | 'pin' | 'verify' | 'done'>('pin')
+  const [step, setStep] = useState<'checking' | 'blocked' | 'ready' | 'done'>('checking')
   const [currentTime, setCurrentTime] = useState(new Date())
   const [location, setLocation] = useState<{ lat: number, lng: number } | null>(null)
   const [recentAttendance, setRecentAttendance] = useState<any[]>([])
-  const [hasFingerprint, setHasFingerprint] = useState(false)
-  const [fingerprintLoading, setFingerprintLoading] = useState(false)
-  const [showFingerprintSetup, setShowFingerprintSetup] = useState(false)
-  const [deviceName, setDeviceName] = useState('My Phone')
   const [remark, setRemark] = useState('')
-  const [officeLocation, setOfficeLocation] = useState<{ lat: number, lng: number, radius: number } | null>(null)
+  const [officeLocation, setOfficeLocation] = useState<OfficeLocation | null>(null)
   const supabase = createClient()
 
   useEffect(() => {
@@ -38,15 +33,17 @@ export default function AttendancePage() {
     return () => clearInterval(timer)
   }, [])
 
-  useEffect(() => { loadData() }, [])
+  useEffect(() => {
+    loadData().then(result => {
+      if (result && !result.attendance?.clock_out) runVerification(result.profile, result.office)
+    })
+  }, [])
 
   async function loadData() {
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!user) return null
     const { data: p } = await supabase.from('profiles').select('*').eq('id', user.id).single()
     setProfile(p)
-    setPinAttempts(p?.pin_attempts || 0)
-    if (!p?.pin_hash) setStep('setup')
 
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kuala_Lumpur' })
     const { data: att } = await supabase.from('attendance').select('*').eq('employee_id', user.id).eq('date', today).maybeSingle()
@@ -55,183 +52,75 @@ export default function AttendancePage() {
     const { data: recent } = await supabase.from('attendance').select('*').eq('employee_id', user.id).order('date', { ascending: false }).limit(7)
     setRecentAttendance(recent || [])
 
-    const { data: fpCreds } = await supabase.from('webauthn_credentials').select('id').eq('user_id', user.id).neq('credential_id', `__pending__${user.id}`)
-    setHasFingerprint((fpCreds || []).length > 0)
-
     const { data: settings } = await supabase.from('company_settings').select('key,value').in('key', ['office_lat', 'office_lng', 'office_radius_m'])
     const s: Record<string, string> = Object.fromEntries((settings || []).map((r: any) => [r.key, r.value]))
+    let office: OfficeLocation | null = null
     if (s.office_lat && s.office_lng) {
-      setOfficeLocation({ lat: parseFloat(s.office_lat), lng: parseFloat(s.office_lng), radius: parseFloat(s.office_radius_m || '200') })
+      office = { lat: parseFloat(s.office_lat), lng: parseFloat(s.office_lng), radius: parseFloat(s.office_radius_m || '200') }
+      setOfficeLocation(office)
     }
+
+    return { profile: p, attendance: att, office }
   }
 
-  async function handleSetPin() {
-    if (pin.length !== 4) return
-    if (step === 'setup') { setStep('setup_confirm'); return }
-    if (pin !== confirmPin) {
-      setMessage({ type: 'error', text: 'PINs do not match. Try again.' })
-      setPin(''); setConfirmPin(''); setStep('setup')
-      return
-    }
-    setLoading(true)
-    const res = await fetch('/api/set-pin', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin })
-    })
-    const result = await res.json()
-    if (result.success) {
-      setMessage({ type: 'success', text: 'PIN set successfully! You can now clock in.' })
-      setStep('pin'); setPin(''); setConfirmPin('')
-      loadData()
-    } else {
-      setMessage({ type: 'error', text: 'Failed to set PIN. Try again.' })
-      setStep('setup'); setPin('')
-    }
-    setLoading(false)
-  }
+  async function runVerification(p: any, office: OfficeLocation | null) {
+    setMessage(null)
+    const needsGps = p?.clock_in_method === 'gps' || p?.clock_in_method === 'both'
+    const needsGeofence = p?.clock_in_method === 'wifi' && office
 
-  async function handlePinSubmit() {
-    if (pin.length !== 4) return
-    if (pinAttempts >= 3) {
-      setMessage({ type: 'error', text: 'Account locked. Please contact HR to reset your PIN.' })
-      return
-    }
-    setLoading(true)
-    const res = await fetch('/api/verify-pin', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin })
-    })
-    const result = await res.json()
+    if (!needsGps && !needsGeofence) { setStep('ready'); return }
 
-    if (!result.valid) {
-      const { data: { user } } = await supabase.auth.getUser()
-      const newAttempts = pinAttempts + 1
-      setPinAttempts(newAttempts)
-      await supabase.from('profiles').update({ pin_attempts: newAttempts }).eq('id', user!.id)
-      setPin('')
-      setMessage({ type: 'error', text: `Wrong PIN. ${3 - newAttempts} attempt${3 - newAttempts !== 1 ? 's' : ''} remaining.` })
-      setLoading(false)
-      return
-    }
+    setStep('checking')
 
-    const { data: { user } } = await supabase.auth.getUser()
-    await supabase.from('profiles').update({ pin_attempts: 0 }).eq('id', user!.id)
-    setPinAttempts(0)
-
-    const needsGps = profile?.clock_in_method === 'gps' || profile?.clock_in_method === 'both'
-    const needsGeofence = profile?.clock_in_method === 'wifi' && officeLocation
-
-    if (needsGps || needsGeofence) {
-      if (!navigator.geolocation) {
-        if (needsGeofence) {
-          setMessage({ type: 'error', text: 'This device does not support location services, which are required to clock in.' })
-          setLoading(false)
-          return
-        }
-        setStep('verify'); setLoading(false)
+    if (!navigator.geolocation) {
+      if (needsGeofence) {
+        setMessage({ type: 'error', text: 'This device does not support location services, which are required to clock in.' })
+        setStep('blocked')
         return
       }
-      navigator.geolocation.getCurrentPosition(
-        async pos => {
-          const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude }
-          setLocation(loc)
-          if (needsGeofence && officeLocation) {
-            const dist = distanceMeters(loc.lat, loc.lng, officeLocation.lat, officeLocation.lng)
-            if (dist > officeLocation.radius) {
-              setMessage({ type: 'error', text: `You are ${Math.round(dist)}m from the office. You must be within ${officeLocation.radius}m to clock in.` })
-              setLoading(false)
-              return
-            }
-          }
-          if (needsGeofence) {
-            try {
-              const ipRes = await fetch('/api/attendance/verify-ip', { method: 'POST' })
-              const ipData = await ipRes.json()
-              if (ipData.configured && !ipData.matches) {
-                setMessage({ type: 'error', text: 'You must be connected to the office WiFi network to clock in.' })
-                setLoading(false)
-                return
-              }
-            } catch {
-              setMessage({ type: 'error', text: 'Could not verify network. Please try again.' })
-              setLoading(false)
-              return
-            }
-          }
-          setStep('verify'); setLoading(false)
-        },
-        () => {
-          if (needsGeofence) {
-            setMessage({ type: 'error', text: 'Location permission is required to clock in. Please enable location access and try again.' })
-            setLoading(false)
+      setStep('ready')
+      return
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async pos => {
+        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude }
+        setLocation(loc)
+        if (needsGeofence && office) {
+          const dist = distanceMeters(loc.lat, loc.lng, office.lat, office.lng)
+          if (dist > office.radius) {
+            setMessage({ type: 'error', text: `You are ${Math.round(dist)}m from the office. You must be within ${office.radius}m to clock in.` })
+            setStep('blocked')
             return
           }
-          setStep('verify'); setLoading(false)
-        },
-        { enableHighAccuracy: true, timeout: 10000 }
-      )
-    } else {
-      setStep('verify')
-      setLoading(false)
-    }
-  }
-
-  async function handleFingerprintSetup() {
-    setFingerprintLoading(true)
-    try {
-      const { startRegistration } = await import('@simplewebauthn/browser')
-      const optRes = await fetch('/api/webauthn/register-options', { method: 'POST' })
-      const options = await optRes.json()
-      if (!optRes.ok) { setMessage({ type: 'error', text: options.error }); setFingerprintLoading(false); return }
-
-      const registration = await startRegistration({ optionsJSON: options })
-
-      const verRes = await fetch('/api/webauthn/register-verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ response: registration, deviceName }),
-      })
-      const verData = await verRes.json()
-      if (verData.verified) {
-        setHasFingerprint(true)
-        setShowFingerprintSetup(false)
-        setMessage({ type: 'success', text: 'Fingerprint registered! You can now use it to clock in.' })
-      } else {
-        setMessage({ type: 'error', text: verData.error || 'Registration failed.' })
-      }
-    } catch (err: any) {
-      if (err.name === 'NotAllowedError') setMessage({ type: 'error', text: 'Fingerprint cancelled or not supported on this device.' })
-      else setMessage({ type: 'error', text: err.message || 'Registration failed.' })
-    }
-    setFingerprintLoading(false)
-  }
-
-  async function handleFingerprintClockIn() {
-    setFingerprintLoading(true)
-    try {
-      const { startAuthentication } = await import('@simplewebauthn/browser')
-      const optRes = await fetch('/api/webauthn/user-options', { method: 'POST' })
-      const options = await optRes.json()
-      if (!optRes.ok) { setMessage({ type: 'error', text: options.error }); setFingerprintLoading(false); return }
-
-      const assertion = await startAuthentication({ optionsJSON: options })
-
-      const verRes = await fetch('/api/webauthn/user-verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ response: assertion }),
-      })
-      const verData = await verRes.json()
-      if (!verData.verified) { setMessage({ type: 'error', text: verData.error || 'Fingerprint verification failed.' }); setFingerprintLoading(false); return }
-
-      setStep('verify')
-    } catch (err: any) {
-      if (err.name === 'NotAllowedError') setMessage({ type: 'error', text: 'Fingerprint cancelled.' })
-      else setMessage({ type: 'error', text: err.message || 'Fingerprint failed.' })
-    }
-    setFingerprintLoading(false)
+        }
+        if (needsGeofence) {
+          try {
+            const ipRes = await fetch('/api/attendance/verify-ip', { method: 'POST' })
+            const ipData = await ipRes.json()
+            if (ipData.configured && !ipData.matches) {
+              setMessage({ type: 'error', text: 'You must be connected to the office WiFi network to clock in.' })
+              setStep('blocked')
+              return
+            }
+          } catch {
+            setMessage({ type: 'error', text: 'Could not verify network. Please try again.' })
+            setStep('blocked')
+            return
+          }
+        }
+        setStep('ready')
+      },
+      () => {
+        if (needsGeofence) {
+          setMessage({ type: 'error', text: 'Location permission is required to clock in. Please enable location access and try again.' })
+          setStep('blocked')
+          return
+        }
+        setStep('ready')
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    )
   }
 
   async function handleClockAction() {
@@ -274,61 +163,8 @@ export default function AttendancePage() {
       setMessage({ type: 'success', text: `Clocked out at ${now.toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit' })} · Total ${totalHours.toFixed(1)}h` })
     }
 
-    setStep('done'); setPin(''); setRemark(''); setLoading(false); loadData()
+    setStep('done'); setRemark(''); setLoading(false); loadData()
   }
-
-  const Keypad = ({ value, onChange, onSubmit, submitLabel }: { value: string, onChange: (v: string) => void, onSubmit: () => void, submitLabel: string }) => (
-    <div>
-      {/* Dots */}
-      <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginBottom: '28px' }}>
-        {[0,1,2,3].map(i => (
-          <div key={i} style={{
-            width: '52px', height: '52px', borderRadius: radius.md,
-            border: `2px solid ${value.length > i ? colors.primary : colors.border}`,
-            background: value.length > i ? '#ECFDF5' : 'white',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '22px', color: colors.primary, transition: 'all 0.15s'
-          }}>
-            {value.length > i ? '●' : ''}
-          </div>
-        ))}
-      </div>
-      {/* Keys */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', maxWidth: '260px', margin: '0 auto' }}>
-        {[1,2,3,4,5,6,7,8,9,'',0,'⌫'].map((k, i) => (
-          <button key={i}
-            onClick={() => {
-              if (k === '⌫') onChange(value.slice(0, -1))
-              else if (k !== '' && value.length < 4) onChange(value + k)
-            }}
-            disabled={k === ''}
-            style={{
-              height: '52px', borderRadius: radius.md, border: 'none',
-              background: k === '' ? 'transparent' : k === '⌫' ? '#F1F5F9' : 'white',
-              boxShadow: k === '' ? 'none' : '0 1px 4px rgba(0,0,0,0.08)',
-              fontSize: k === '⌫' ? '18px' : '20px',
-              fontWeight: '600', color: colors.textPrimary,
-              cursor: k === '' ? 'default' : 'pointer',
-              visibility: k === '' ? 'hidden' : 'visible',
-            }}
-          >{k}</button>
-        ))}
-      </div>
-      <button
-        onClick={onSubmit}
-        disabled={value.length !== 4 || loading}
-        style={{
-          ...styles.primaryButton,
-          width: '100%', marginTop: '20px',
-          padding: '13px', fontSize: font.md,
-          opacity: value.length !== 4 || loading ? 0.5 : 1,
-          maxWidth: '260px', display: 'block', margin: '20px auto 0',
-        }}
-      >
-        {loading ? 'Please wait...' : submitLabel}
-      </button>
-    </div>
-  )
 
   const shiftLabel = profile?.shift === 'B' ? 'Shift B · 8:00 AM – 6:00 PM' : profile?.shift === 'C' ? 'Flexible Hours' : 'Shift A · 8:00 AM – 5:00 PM'
 
@@ -394,115 +230,37 @@ export default function AttendancePage() {
           </div>
         )}
 
-        {/* Setup PIN */}
-        {(step === 'setup' || step === 'setup_confirm') && (
-          <div style={{ ...styles.card }}>
-            <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-              <div style={{ width: '48px', height: '48px', background: '#EFF6FF', borderRadius: radius.md, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
-                <Shield size={22} color="#2563EB" />
-              </div>
-              <h3 style={{ margin: '0 0 4px', fontSize: font.lg, fontWeight: '700', color: colors.textPrimary }}>
-                {step === 'setup' ? 'Set Your PIN' : 'Confirm PIN'}
-              </h3>
-              <p style={{ margin: 0, fontSize: font.base, color: colors.textMuted }}>
-                {step === 'setup' ? 'Create a 4-digit PIN for clocking in' : 'Enter your PIN again to confirm'}
-              </p>
-            </div>
-            <Keypad
-              value={step === 'setup' ? pin : confirmPin}
-              onChange={step === 'setup' ? setPin : setConfirmPin}
-              onSubmit={handleSetPin}
-              submitLabel={step === 'setup' ? 'Continue' : 'Set PIN'}
-            />
+        {/* Checking location */}
+        {!todayRecord?.clock_out && step === 'checking' && (
+          <div style={{ ...styles.card, textAlign: 'center', padding: '40px 24px' }}>
+            <div style={{
+              width: '40px', height: '40px', margin: '0 auto 16px',
+              border: `3px solid ${colors.borderLight}`, borderTopColor: colors.primary,
+              borderRadius: '50%', animation: 'mv-spin 0.8s linear infinite',
+            }} />
+            <p style={{ margin: 0, fontSize: font.base, color: colors.textMuted }}>Checking your location...</p>
+            <style>{`@keyframes mv-spin { to { transform: rotate(360deg); } }`}</style>
           </div>
         )}
 
-        {/* PIN Entry */}
-        {step === 'pin' && !todayRecord?.clock_out && (
-          <div style={{ ...styles.card }}>
-            <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-              <h3 style={{ margin: '0 0 4px', fontSize: font.lg, fontWeight: '700', color: colors.textPrimary }}>
-                {todayRecord?.clock_in ? 'Clock Out 打卡退出' : 'Clock In 打卡进入'}
-              </h3>
-              <p style={{ margin: 0, fontSize: font.base, color: colors.textMuted }}>Enter your 4-digit PIN 输入4位数PIN</p>
-              {pinAttempts > 0 && (
-                <p style={{ margin: '6px 0 0', fontSize: font.sm, color: '#DC2626', fontWeight: '600' }}>
-                  {3 - pinAttempts} attempt{3 - pinAttempts !== 1 ? 's' : ''} remaining
-                </p>
-              )}
-            </div>
-
-            {/* Fingerprint button */}
-            {hasFingerprint && (
-              <>
-                <button onClick={handleFingerprintClockIn} disabled={fingerprintLoading}
-                  style={{ ...styles.primaryButton, width: '100%', justifyContent: 'center', marginBottom: '16px', background: 'linear-gradient(135deg, #1E3A5F, #1D4ED8)', opacity: fingerprintLoading ? 0.6 : 1, display: 'flex', alignItems: 'center', gap: '8px', padding: '14px' }}>
-                  <Fingerprint size={20} />
-                  {fingerprintLoading ? 'Verifying...' : 'Use Fingerprint 指纹打卡'}
-                </button>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-                  <div style={{ flex: 1, height: '1px', background: colors.border }} />
-                  <span style={{ fontSize: '11px', color: colors.textMuted }}>or use PIN</span>
-                  <div style={{ flex: 1, height: '1px', background: colors.border }} />
-                </div>
-              </>
-            )}
-
-            <Keypad value={pin} onChange={setPin} onSubmit={handlePinSubmit} submitLabel="Confirm 确认" />
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '16px' }}>
-              <p onClick={() => setStep('setup')} style={{ fontSize: font.sm, color: colors.primaryLight, cursor: 'pointer', margin: 0 }}>
-                Forgot PIN? Reset here
-              </p>
-              {!hasFingerprint && (
-                <p onClick={() => setShowFingerprintSetup(true)} style={{ fontSize: font.sm, color: colors.textMuted, cursor: 'pointer', margin: 0, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Fingerprint size={13} />Set up fingerprint
-                </p>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Fingerprint Setup Modal */}
-        {showFingerprintSetup && (
-          <div style={{ ...styles.card, marginTop: '16px', border: `2px solid ${colors.infoBg}` }}>
-            <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-              <div style={{ width: '52px', height: '52px', background: colors.infoBg, borderRadius: radius.md, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
-                <Fingerprint size={24} color={colors.infoText} />
-              </div>
-              <h3 style={{ margin: '0 0 4px', fontSize: font.lg, fontWeight: '700', color: colors.textPrimary }}>Register Fingerprint 注册指纹</h3>
-              <p style={{ margin: 0, fontSize: font.sm, color: colors.textMuted }}>Your fingerprint data stays on this device and never leaves it.</p>
-            </div>
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', fontSize: font.xs, fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '6px' }}>Device Name</label>
-              <input value={deviceName} onChange={e => setDeviceName(e.target.value)} placeholder="e.g. My Phone"
-                style={{ ...styles.input, width: '100%' }} />
-            </div>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setShowFingerprintSetup(false)} style={{ ...styles.outlineButton, flex: 1, justifyContent: 'center' }}>Cancel</button>
-              <button onClick={handleFingerprintSetup} disabled={fingerprintLoading}
-                style={{ ...styles.primaryButton, flex: 1, justifyContent: 'center', opacity: fingerprintLoading ? 0.6 : 1, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Fingerprint size={15} />{fingerprintLoading ? 'Setting up...' : 'Register Now'}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Fingerprint management (if registered) */}
-        {step === 'pin' && hasFingerprint && !showFingerprintSetup && (
-          <div style={{ textAlign: 'center', marginTop: '8px' }}>
-            <button onClick={() => setShowFingerprintSetup(true)} style={{ background: 'none', border: 'none', fontSize: font.xs, color: colors.textMuted, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-              <Settings2 size={12} />Add another device
+        {/* Blocked */}
+        {!todayRecord?.clock_out && step === 'blocked' && (
+          <div style={{ ...styles.card, textAlign: 'center' }}>
+            <button onClick={() => runVerification(profile, officeLocation)} style={{ ...styles.primaryButton, width: '100%', justifyContent: 'center' }}>
+              Try Again 重试
             </button>
           </div>
         )}
 
-        {/* Verify / Confirm */}
-        {step === 'verify' && (
+        {/* Ready / Confirm */}
+        {!todayRecord?.clock_out && step === 'ready' && (
           <div style={{ ...styles.card, textAlign: 'center' }}>
             <div style={{ width: '56px', height: '56px', background: '#ECFDF5', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
               {profile?.clock_in_method === 'wifi' ? <Wifi size={26} color="#059669" /> : <MapPin size={26} color="#059669" />}
             </div>
-            <h3 style={{ margin: '0 0 6px', fontSize: font.lg, fontWeight: '700', color: colors.textPrimary }}>PIN Verified ✓</h3>
+            <h3 style={{ margin: '0 0 6px', fontSize: font.lg, fontWeight: '700', color: colors.textPrimary }}>
+              {todayRecord?.clock_in ? 'Clock Out 打卡退出' : 'Clock In 打卡进入'}
+            </h3>
             <p style={{ margin: '0 0 4px', fontSize: font.base, color: colors.textMuted }}>
               {todayRecord?.clock_in ? 'Ready to clock out?' : 'Ready to clock in?'}
             </p>
@@ -544,7 +302,7 @@ export default function AttendancePage() {
             <h3 style={{ margin: '0 0 4px', fontSize: font.lg, fontWeight: '700', color: colors.textPrimary }}>Done!</h3>
             <p style={{ margin: '0 0 20px', fontSize: font.base, color: colors.textMuted }}>Your attendance has been recorded.</p>
             {!todayRecord?.clock_out && (
-              <button onClick={() => { setStep('pin'); setMessage(null) }} style={{ ...styles.outlineButton, width: '100%' }}>
+              <button onClick={() => runVerification(profile, officeLocation)} style={{ ...styles.outlineButton, width: '100%' }}>
                 Clock Out Later
               </button>
             )}
