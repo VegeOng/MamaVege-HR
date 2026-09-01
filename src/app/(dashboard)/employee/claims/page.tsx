@@ -122,10 +122,13 @@ export default function EmployeeClaimsPage() {
       const ext = receipt.name.split('.').pop()
       const path = `claims/${user.id}/${Date.now()}.${ext}`
       const { error: upErr } = await supabase.storage.from('documents').upload(path, receipt)
-      if (!upErr) {
-        const { data: urlData } = supabase.storage.from('documents').getPublicUrl(path)
-        receiptUrl = urlData.publicUrl
+      if (upErr) {
+        setMsg({ type: 'error', text: `Receipt upload failed: ${upErr.message}. Please try again.` })
+        setSubmitting(false)
+        return
       }
+      const { data: urlData } = supabase.storage.from('documents').getPublicUrl(path)
+      receiptUrl = urlData.publicUrl
     }
 
     const claimDate = new Date(form.date)
