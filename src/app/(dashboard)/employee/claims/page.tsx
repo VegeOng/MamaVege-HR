@@ -34,7 +34,7 @@ export default function EmployeeClaimsPage() {
   const [showForm, setShowForm] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [msg, setMsg] = useState<{ type: 'success' | 'error', text: string } | null>(null)
-  const [receipt, setReceipt] = useState<File | null>(null)
+  const [receipts, setReceipts] = useState<File[]>([])
   const [hrSettings, setHrSettings] = useState<any>({})
   const fileRef = useRef<HTMLInputElement>(null)
   const [form, setForm] = useState({
@@ -117,18 +117,18 @@ export default function EmployeeClaimsPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    let receiptUrl: string | null = null
-    if (receipt) {
-      const ext = receipt.name.split('.').pop()
-      const path = `claims/${user.id}/${Date.now()}.${ext}`
-      const { error: upErr } = await supabase.storage.from('documents').upload(path, receipt)
+    const receiptUrls: string[] = []
+    for (const file of receipts) {
+      const ext = file.name.split('.').pop()
+      const path = `claims/${user.id}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`
+      const { error: upErr } = await supabase.storage.from('documents').upload(path, file)
       if (upErr) {
-        setMsg({ type: 'error', text: `Receipt upload failed: ${upErr.message}. Please try again.` })
+        setMsg({ type: 'error', text: `Receipt upload failed (${file.name}): ${upErr.message}. Please try again.` })
         setSubmitting(false)
         return
       }
       const { data: urlData } = supabase.storage.from('documents').getPublicUrl(path)
-      receiptUrl = urlData.publicUrl
+      receiptUrls.push(urlData.publicUrl)
     }
 
     const claimDate = new Date(form.date)
@@ -137,7 +137,8 @@ export default function EmployeeClaimsPage() {
       claim_type_id: form.claim_type_id,
       amount: amt,
       description: form.description,
-      receipt_url: receiptUrl,
+      receipt_url: receiptUrls[0] || null,
+      receipt_urls: receiptUrls.length ? receiptUrls : null,
       claim_date: form.date,
       month: claimDate.getMonth() + 1,
       year: claimDate.getFullYear(),
@@ -155,7 +156,7 @@ export default function EmployeeClaimsPage() {
 
       setMsg({ type: 'success', text: 'Claim submitted successfully!' })
       setForm({ claim_type_id: '55188c14-0a0c-482f-b6d8-c99754b05379', amount: '', description: '', date: new Date().toISOString().split('T')[0] })
-      setReceipt(null)
+      setReceipts([])
       setShowForm(false)
       loadData()
     }
@@ -286,31 +287,38 @@ export default function EmployeeClaimsPage() {
             </div>
 
             {/* Receipt Upload */}
-            <Field label="Receipt (optional)">
-              <div
-                onClick={() => fileRef.current?.click()}
-                style={{
-                  border: `2px dashed ${receipt ? colors.primaryLight : colors.border}`,
-                  borderRadius: radius.md, padding: '16px', textAlign: 'center',
-                  cursor: 'pointer', background: receipt ? '#ECFDF5' : colors.borderLight,
-                  marginTop: '4px',
-                }}
-              >
-                {receipt ? (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                    <Paperclip size={16} color={colors.primary} />
-                    <span style={{ fontSize: font.base, color: colors.primary, fontWeight: '600' }}>{receipt.name}</span>
-                    <X size={14} color={colors.textMuted} onClick={e => { e.stopPropagation(); setReceipt(null) }} />
+            <Field label="Receipts (optional)">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
+                {receipts.map((file, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: radius.md, background: '#ECFDF5', border: `1px solid ${colors.primaryLight}` }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                      <Paperclip size={16} color={colors.primary} />
+                      <span style={{ fontSize: font.base, color: colors.primary, fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</span>
+                    </span>
+                    <X size={14} color={colors.textMuted} style={{ cursor: 'pointer', flexShrink: 0 }} onClick={() => setReceipts(prev => prev.filter((_, idx) => idx !== i))} />
                   </div>
-                ) : (
+                ))}
+                <div
+                  onClick={() => fileRef.current?.click()}
+                  style={{
+                    border: `2px dashed ${colors.border}`,
+                    borderRadius: radius.md, padding: '16px', textAlign: 'center',
+                    cursor: 'pointer', background: colors.borderLight,
+                  }}
+                >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                     <Upload size={16} color={colors.textMuted} />
-                    <span style={{ fontSize: font.base, color: colors.textMuted }}>Upload receipt image or PDF</span>
+                    <span style={{ fontSize: font.base, color: colors.textMuted }}>
+                      {receipts.length > 0 ? 'Add more receipts' : 'Upload receipt image(s) or PDF'}
+                    </span>
                   </div>
-                )}
+                </div>
               </div>
-              <input ref={fileRef} type="file" accept="image/*,.pdf" style={{ display: 'none' }}
-                onChange={e => setReceipt(e.target.files?.[0] || null)} />
+              <input ref={fileRef} type="file" accept="image/*,.pdf" multiple style={{ display: 'none' }}
+                onChange={e => {
+                  setReceipts(prev => [...prev, ...Array.from(e.target.files || [])])
+                  e.target.value = ''
+                }} />
             </Field>
 
             <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
@@ -345,6 +353,7 @@ export default function EmployeeClaimsPage() {
               </div>
               {claims.map((c, i) => {
                 const s = statusStyle(c.status)
+                const receiptUrls: string[] = c.receipt_urls?.length ? c.receipt_urls : (c.receipt_url ? [c.receipt_url] : [])
                 return (
                   <div key={c.id} style={{
                     display: 'grid', gridTemplateColumns: '100px 1fr 130px 100px 90px', gap: '8px',
@@ -356,7 +365,13 @@ export default function EmployeeClaimsPage() {
                     </p>
                     <div>
                       <p style={{ margin: 0, fontSize: font.base, color: colors.textPrimary, fontWeight: '500' }}>{c.description}</p>
-                      {c.receipt_url && <a href={c.receipt_url} target="_blank" style={{ fontSize: font.xs, color: colors.primaryLight, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '3px', marginTop: '2px' }}><Paperclip size={11} /> Receipt</a>}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                        {receiptUrls.map((url, idx) => (
+                          <a key={idx} href={url} target="_blank" rel="noreferrer" style={{ fontSize: font.xs, color: colors.primaryLight, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '3px', marginTop: '2px' }}>
+                            <Paperclip size={11} /> {receiptUrls.length > 1 ? `Receipt ${idx + 1}` : 'Receipt'}
+                          </a>
+                        ))}
+                      </div>
                     </div>
                     <p style={{ margin: 0, fontSize: font.base, color: colors.textSecondary }}>{c.claim_type?.name || '-'}</p>
                     <p style={{ margin: 0, fontSize: font.base, fontWeight: '700', color: colors.textPrimary }}>RM {(c.amount || 0).toFixed(2)}</p>

@@ -145,6 +145,7 @@ export default function HRClaimsPage() {
               const type = claimTypes[c.claim_type_id] || { name: 'Unknown', code: 'OTHERS' }
               const typeColor = TYPE_COLORS[type.code] || colors.gradients.green
               const initials = (c.profiles?.full_name || 'U').split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
+              const receiptUrls: string[] = c.receipt_urls?.length ? c.receipt_urls : (c.receipt_url ? [c.receipt_url] : [])
               return (
                 <div key={c.id} style={{ ...styles.card, padding: '16px 20px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', flexWrap: 'wrap' }}>
@@ -170,11 +171,11 @@ export default function HRClaimsPage() {
                         <div style={{ display: 'flex', gap: '12px', marginTop: '6px', flexWrap: 'wrap' }}>
                           <span style={{ fontSize: font.xs, color: colors.textMuted }}>{monthLabel(c.month, c.year)}</span>
                           <span style={{ fontSize: font.xs, color: colors.textMuted }}>Claim date: {new Date(c.claim_date || c.created_at).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                          {c.receipt_url && (
-                            <a href={c.receipt_url} target="_blank" rel="noreferrer" style={{ fontSize: font.xs, color: colors.info, fontWeight: '600', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                              <FileText size={11} />View Receipt
+                          {receiptUrls.map((url, idx) => (
+                            <a key={idx} href={url} target="_blank" rel="noreferrer" style={{ fontSize: font.xs, color: colors.info, fontWeight: '600', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                              <FileText size={11} />{receiptUrls.length > 1 ? `Receipt ${idx + 1}` : 'View Receipt'}
                             </a>
-                          )}
+                          ))}
                         </div>
                         {c.status === 'rejected' && c.reviewer_notes && (
                           <p style={{ margin: '6px 0 0', fontSize: font.xs, color: colors.dangerText, background: colors.dangerBg, padding: '4px 8px', borderRadius: radius.sm, display: 'inline-block' }}>
