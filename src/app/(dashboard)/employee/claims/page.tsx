@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Plus, Upload, X, Paperclip } from 'lucide-react'
 import { colors, radius, shadow, styles, font } from '@/lib/design'
@@ -36,7 +36,6 @@ export default function EmployeeClaimsPage() {
   const [msg, setMsg] = useState<{ type: 'success' | 'error', text: string } | null>(null)
   const [receipts, setReceipts] = useState<File[]>([])
   const [hrSettings, setHrSettings] = useState<any>({})
-  const fileRef = useRef<HTMLInputElement>(null)
   const [form, setForm] = useState({
     claim_type_id: '55188c14-0a0c-482f-b6d8-c99754b05379',
     amount: '',
@@ -298,30 +297,23 @@ export default function EmployeeClaimsPage() {
                     <X size={14} color={colors.textMuted} style={{ cursor: 'pointer', flexShrink: 0 }} onClick={() => setReceipts(prev => prev.filter((_, idx) => idx !== i))} />
                   </div>
                 ))}
-                <label
-                  htmlFor="claim-receipt-input"
-                  style={{
-                    display: 'block',
-                    border: `2px dashed ${colors.border}`,
-                    borderRadius: radius.md, padding: '16px', textAlign: 'center',
-                    cursor: 'pointer', background: colors.borderLight,
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                    <Upload size={16} color={colors.textMuted} />
-                    <span style={{ fontSize: font.base, color: colors.textMuted }}>
-                      {receipts.length > 0 ? 'Add more receipts' : 'Upload receipt image(s) or PDF'}
-                    </span>
-                  </div>
-                </label>
+                <div style={{
+                  border: `2px dashed ${colors.border}`,
+                  borderRadius: radius.md, padding: '14px', background: colors.borderLight,
+                }}>
+                  <p style={{ margin: '0 0 8px', fontSize: font.sm, color: colors.textMuted, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Upload size={15} color={colors.textMuted} />
+                    {receipts.length > 0 ? 'Add more receipts' : 'Choose receipt image(s) or PDF'}
+                  </p>
+                  <input
+                    id="claim-receipt-input" type="file" accept="image/*,.pdf" multiple
+                    style={{ display: 'block', width: '100%', fontSize: font.sm, color: colors.textMuted }}
+                    onChange={e => {
+                      setReceipts(prev => [...prev, ...Array.from(e.target.files || [])])
+                      e.target.value = ''
+                    }} />
+                </div>
               </div>
-              <input
-                ref={fileRef} id="claim-receipt-input" type="file" accept="image/*,.pdf" multiple
-                style={{ position: 'absolute', width: '1px', height: '1px', padding: 0, margin: '-1px', overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 }}
-                onChange={e => {
-                  setReceipts(prev => [...prev, ...Array.from(e.target.files || [])])
-                  e.target.value = ''
-                }} />
             </Field>
 
             <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
