@@ -298,9 +298,10 @@ export default function EmployeeClaimsPage() {
                     <X size={14} color={colors.textMuted} style={{ cursor: 'pointer', flexShrink: 0 }} onClick={() => setReceipts(prev => prev.filter((_, idx) => idx !== i))} />
                   </div>
                 ))}
-                <div
-                  onClick={() => fileRef.current?.click()}
+                <label
+                  htmlFor="claim-receipt-input"
                   style={{
+                    display: 'block',
                     border: `2px dashed ${colors.border}`,
                     borderRadius: radius.md, padding: '16px', textAlign: 'center',
                     cursor: 'pointer', background: colors.borderLight,
@@ -312,9 +313,11 @@ export default function EmployeeClaimsPage() {
                       {receipts.length > 0 ? 'Add more receipts' : 'Upload receipt image(s) or PDF'}
                     </span>
                   </div>
-                </div>
+                </label>
               </div>
-              <input ref={fileRef} type="file" accept="image/*,.pdf" multiple style={{ display: 'none' }}
+              <input
+                ref={fileRef} id="claim-receipt-input" type="file" accept="image/*,.pdf" multiple
+                style={{ position: 'absolute', width: '1px', height: '1px', padding: 0, margin: '-1px', overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 }}
                 onChange={e => {
                   setReceipts(prev => [...prev, ...Array.from(e.target.files || [])])
                   e.target.value = ''
