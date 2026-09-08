@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, Upload, X, Paperclip } from 'lucide-react'
+import { Plus, X, Paperclip } from 'lucide-react'
 import { colors, radius, shadow, styles, font } from '@/lib/design'
 import { generateWhatsAppLink } from '@/lib/utils'
 
@@ -34,7 +34,6 @@ export default function EmployeeClaimsPage() {
   const [showForm, setShowForm] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [msg, setMsg] = useState<{ type: 'success' | 'error', text: string } | null>(null)
-  const [receipts, setReceipts] = useState<File[]>([])
   const [hrSettings, setHrSettings] = useState<any>({})
   const [form, setForm] = useState({
     claim_type_id: '55188c14-0a0c-482f-b6d8-c99754b05379',
@@ -116,28 +115,12 @@ export default function EmployeeClaimsPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    const receiptUrls: string[] = []
-    for (const file of receipts) {
-      const ext = file.name.split('.').pop()
-      const path = `claims/${user.id}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`
-      const { error: upErr } = await supabase.storage.from('documents').upload(path, file)
-      if (upErr) {
-        setMsg({ type: 'error', text: `Receipt upload failed (${file.name}): ${upErr.message}. Please try again.` })
-        setSubmitting(false)
-        return
-      }
-      const { data: urlData } = supabase.storage.from('documents').getPublicUrl(path)
-      receiptUrls.push(urlData.publicUrl)
-    }
-
     const claimDate = new Date(form.date)
     const { error } = await supabase.from('claims').insert({
       employee_id: user.id,
       claim_type_id: form.claim_type_id,
       amount: amt,
       description: form.description,
-      receipt_url: receiptUrls[0] || null,
-      receipt_urls: receiptUrls.length ? receiptUrls : null,
       claim_date: form.date,
       month: claimDate.getMonth() + 1,
       year: claimDate.getFullYear(),
@@ -155,7 +138,6 @@ export default function EmployeeClaimsPage() {
 
       setMsg({ type: 'success', text: 'Claim submitted successfully!' })
       setForm({ claim_type_id: '55188c14-0a0c-482f-b6d8-c99754b05379', amount: '', description: '', date: new Date().toISOString().split('T')[0] })
-      setReceipts([])
       setShowForm(false)
       loadData()
     }
@@ -284,37 +266,6 @@ export default function EmployeeClaimsPage() {
                   style={{ ...styles.input, gridColumn: '1 / -1' }} placeholder="Brief description" />
               </Field>
             </div>
-
-            {/* Receipt Upload */}
-            <Field label="Receipts (optional)">
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
-                {receipts.map((file, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: radius.md, background: '#ECFDF5', border: `1px solid ${colors.primaryLight}` }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-                      <Paperclip size={16} color={colors.primary} />
-                      <span style={{ fontSize: font.base, color: colors.primary, fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</span>
-                    </span>
-                    <X size={14} color={colors.textMuted} style={{ cursor: 'pointer', flexShrink: 0 }} onClick={() => setReceipts(prev => prev.filter((_, idx) => idx !== i))} />
-                  </div>
-                ))}
-                <div style={{
-                  border: `2px dashed ${colors.border}`,
-                  borderRadius: radius.md, padding: '14px', background: colors.borderLight,
-                }}>
-                  <p style={{ margin: '0 0 8px', fontSize: font.sm, color: colors.textMuted, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Upload size={15} color={colors.textMuted} />
-                    {receipts.length > 0 ? 'Add more receipts' : 'Choose receipt image(s) or PDF'}
-                  </p>
-                  <input
-                    id="claim-receipt-input" type="file" accept="image/*,.pdf" multiple
-                    style={{ display: 'block', width: '100%', fontSize: font.sm, color: colors.textMuted }}
-                    onChange={e => {
-                      setReceipts(prev => [...prev, ...Array.from(e.target.files || [])])
-                      e.target.value = ''
-                    }} />
-                </div>
-              </div>
-            </Field>
 
             <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
               <button onClick={handleSubmit} disabled={submitting} style={{
