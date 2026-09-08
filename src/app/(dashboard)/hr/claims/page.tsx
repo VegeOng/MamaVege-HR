@@ -1,7 +1,7 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Fragment } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Check, X, FileText, Clock, CheckCircle2, XCircle, ListFilter } from 'lucide-react'
+import { Check, X, FileText, Clock, CheckCircle2, XCircle, ListFilter, Search, ChevronDown, ChevronRight } from 'lucide-react'
 import { colors, radius, shadow, styles, font } from '@/lib/design'
 import { generateWhatsAppLink } from '@/lib/utils'
 
@@ -22,6 +22,7 @@ const FILTERS = [
 ]
 
 export default function HRClaimsPage() {
+  const [viewMode, setViewMode] = useState<'requests' | 'monthly'>('requests')
   const [claims, setClaims] = useState<any[]>([])
   const [claimTypes, setClaimTypes] = useState<Record<string, { name: string; code: string }>>({})
   const [loading, setLoading] = useState(true)
@@ -29,10 +30,29 @@ export default function HRClaimsPage() {
   const [actingId, setActingId] = useState<string | null>(null)
   const [rejectingId, setRejectingId] = useState<string | null>(null)
   const [rejectNote, setRejectNote] = useState('')
+  const [month, setMonth] = useState(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  })
+  const [monthlyClaims, setMonthlyClaims] = useState<any[]>([])
+  const [loadingMonthly, setLoadingMonthly] = useState(true)
+  const [monthlySearch, setMonthlySearch] = useState('')
+  const [expandedEmployee, setExpandedEmployee] = useState<string | null>(null)
   const supabase = createClient()
 
   useEffect(() => { loadTypes() }, [])
   useEffect(() => { loadData() }, [filter])
+  useEffect(() => { if (viewMode === 'monthly') loadMonthlyData() }, [viewMode, month])
+
+  async function loadMonthlyData() {
+    setLoadingMonthly(true)
+    const [y, m] = month.split('-').map(Number)
+    const { data } = await supabase.from('claims')
+      .select('*, profiles!claims_employee_id_fkey(full_name, employee_id, department)')
+      .eq('year', y).eq('month', m)
+    setMonthlyClaims(data || [])
+    setLoadingMonthly(false)
+  }
 
   async function loadTypes() {
     const { data } = await supabase.from('claim_types').select('id, name, code')
@@ -87,15 +107,48 @@ export default function HRClaimsPage() {
   const pendingCount = claims.filter(c => c.status === 'pending').length
   const pendingTotal = claims.filter(c => c.status === 'pending').reduce((s, c) => s + parseFloat(c.amount || 0), 0)
 
+  const monthlySummary = (() => {
+    const map: Record<string, any> = {}
+    monthlyClaims.forEach(c => {
+      const key = c.employee_id
+      if (!map[key]) map[key] = { employee_id: key, profile: c.profiles, approvedTotal: 0, pendingTotal: 0, rejectedTotal: 0 }
+      const amt = parseFloat(c.amount || 0)
+      if (c.status === 'approved') map[key].approvedTotal += amt
+      else if (c.status === 'pending') map[key].pendingTotal += amt
+      else if (c.status === 'rejected') map[key].rejectedTotal += amt
+    })
+    return Object.values(map).sort((a: any, b: any) => (a.profile?.full_name || '').localeCompare(b.profile?.full_name || ''))
+  })()
+
+  const filteredMonthlySummary = monthlySummary.filter((s: any) =>
+    !monthlySearch ||
+    s.profile?.full_name?.toLowerCase().includes(monthlySearch.toLowerCase()) ||
+    s.profile?.employee_id?.toLowerCase().includes(monthlySearch.toLowerCase())
+  )
+
   return (
     <div style={{ ...styles.pageWrapper }}>
       <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
 
-        <div style={{ marginBottom: '24px' }}>
-          <h1 style={{ ...styles.pageTitle }}>Claims 报销管理</h1>
-          <p style={{ ...styles.pageSubtitle }}>Review and approve employee expense claims</p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <h1 style={{ ...styles.pageTitle }}>Claims 报销管理</h1>
+            <p style={{ ...styles.pageSubtitle }}>Review and approve employee expense claims</p>
+          </div>
+          <div style={{ display: 'flex', gap: '6px', background: 'white', padding: '4px', borderRadius: radius.full, boxShadow: shadow.card }}>
+            {(['requests', 'monthly'] as const).map(v => (
+              <button key={v} onClick={() => setViewMode(v)} style={{
+                padding: '6px 14px', borderRadius: radius.full, fontSize: font.sm, fontWeight: '600',
+                border: 'none', cursor: 'pointer', textTransform: 'capitalize',
+                background: viewMode === v ? colors.primary : 'transparent',
+                color: viewMode === v ? 'white' : colors.textMuted,
+              }}>{v === 'requests' ? 'Requests' : 'Monthly'}</button>
+            ))}
+          </div>
         </div>
 
+        {viewMode === 'requests' ? (
+        <>
         {filter === 'pending' && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '14px', marginBottom: '20px' }}>
             <div style={{ ...styles.card, display: 'flex', alignItems: 'center', gap: '14px' }}>
@@ -228,6 +281,128 @@ export default function HRClaimsPage() {
               )
             })}
           </div>
+        )}
+        </>
+        ) : (
+        <>
+          {/* Monthly search */}
+          <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{ position: 'relative', flex: 1, maxWidth: '320px' }}>
+              <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: colors.textMuted, pointerEvents: 'none' }} />
+              <input
+                type="text" placeholder="Search name or ID..."
+                value={monthlySearch} onChange={e => setMonthlySearch(e.target.value)}
+                style={{ ...styles.input, paddingLeft: '34px', width: '100%' }}
+              />
+            </div>
+            <input type="month" value={month} onChange={e => setMonth(e.target.value)} style={{ ...styles.input, width: 'auto' }} />
+          </div>
+
+          {/* Monthly Table */}
+          <div style={{ ...styles.card, padding: 0, overflow: 'hidden' }}>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: colors.borderLight, borderBottom: `1px solid ${colors.border}` }}>
+                    {['Employee', 'Department', 'Approved', 'Pending', 'Rejected'].map(h => (
+                      <th key={h} style={{ padding: '11px 16px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {loadingMonthly ? (
+                    <tr><td colSpan={5} style={{ textAlign: 'center', padding: '48px', color: colors.textMuted, fontSize: font.base }}>Loading...</td></tr>
+                  ) : filteredMonthlySummary.length === 0 ? (
+                    <tr><td colSpan={5} style={{ textAlign: 'center', padding: '48px', color: colors.textMuted, fontSize: font.base }}>No claims for this month</td></tr>
+                  ) : filteredMonthlySummary.map((s: any) => {
+                    const isExpanded = expandedEmployee === s.employee_id
+                    const empClaims = monthlyClaims
+                      .filter(c => c.employee_id === s.employee_id)
+                      .sort((a, b) => (a.claim_date || '').localeCompare(b.claim_date || ''))
+                    return (
+                      <Fragment key={s.employee_id}>
+                        <tr
+                          onClick={() => setExpandedEmployee(isExpanded ? null : s.employee_id)}
+                          style={{ borderBottom: isExpanded ? 'none' : `1px solid ${colors.borderLight}`, cursor: 'pointer', background: isExpanded ? colors.pageBg : 'transparent' }}>
+                          <td style={{ padding: '13px 16px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '11px' }}>
+                              {isExpanded ? <ChevronDown size={14} color={colors.textMuted} /> : <ChevronRight size={14} color={colors.textMuted} />}
+                              <div style={{
+                                width: '36px', height: '36px', borderRadius: radius.md, flexShrink: 0,
+                                background: 'linear-gradient(135deg, #1B4332, #52B788)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                color: 'white', fontSize: '12px', fontWeight: '700'
+                              }}>
+                                {(s.profile?.full_name || 'U').split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
+                              </div>
+                              <div>
+                                <p style={{ margin: 0, fontSize: font.base, fontWeight: '600', color: colors.textPrimary }}>{s.profile?.full_name || '-'}</p>
+                                <p style={{ margin: 0, fontSize: font.xs, color: colors.textMuted }}>{s.profile?.employee_id || '-'}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td style={{ padding: '13px 16px', fontSize: font.sm, color: colors.textSecondary }}>{s.profile?.department || '-'}</td>
+                          <td style={{ padding: '13px 16px', fontSize: font.sm, fontWeight: '700', color: colors.successText }}>RM {s.approvedTotal.toFixed(2)}</td>
+                          <td style={{ padding: '13px 16px', fontSize: font.sm, fontWeight: '700', color: colors.warningText }}>RM {s.pendingTotal.toFixed(2)}</td>
+                          <td style={{ padding: '13px 16px', fontSize: font.sm, fontWeight: '700', color: colors.dangerText }}>RM {s.rejectedTotal.toFixed(2)}</td>
+                        </tr>
+                        {isExpanded && (
+                          <tr style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
+                            <td colSpan={5} style={{ padding: '0 16px 16px 60px', background: colors.pageBg }}>
+                              <div style={{ background: 'white', borderRadius: radius.md, overflow: 'hidden', border: `1px solid ${colors.borderLight}` }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                  <thead>
+                                    <tr style={{ background: colors.borderLight }}>
+                                      {['Type', 'Description', 'Date', 'Amount', 'Status'].map(h => (
+                                        <th key={h} style={{ padding: '8px 14px', textAlign: 'left', fontSize: '10px', fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{h}</th>
+                                      ))}
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {empClaims.map(c => {
+                                      const type = claimTypes[c.claim_type_id] || { name: 'Unknown', code: 'OTHERS' }
+                                      const receiptUrls: string[] = c.receipt_urls?.length ? c.receipt_urls : (c.receipt_url ? [c.receipt_url] : [])
+                                      return (
+                                        <tr key={c.id} style={{ borderTop: `1px solid ${colors.borderLight}` }}>
+                                          <td style={{ padding: '8px 14px' }}>
+                                            <span style={{ fontSize: '10px', fontWeight: '700', color: 'white', padding: '2px 9px', borderRadius: radius.full, background: TYPE_COLORS[type.code] || colors.gradients.green }}>{type.name}</span>
+                                          </td>
+                                          <td style={{ padding: '8px 14px', fontSize: font.sm, color: colors.textPrimary, fontWeight: '600' }}>
+                                            {c.description || '-'}
+                                            {receiptUrls.map((url, idx) => (
+                                              <a key={idx} href={url} target="_blank" rel="noreferrer" style={{ marginLeft: '8px', fontSize: font.xs, color: colors.info, fontWeight: '600', textDecoration: 'none' }}>
+                                                {receiptUrls.length > 1 ? `Receipt ${idx + 1}` : 'Receipt'}
+                                              </a>
+                                            ))}
+                                          </td>
+                                          <td style={{ padding: '8px 14px', fontSize: font.sm, color: colors.textSecondary }}>
+                                            {new Date(c.claim_date || c.created_at).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}
+                                          </td>
+                                          <td style={{ padding: '8px 14px', fontSize: font.sm, color: colors.textSecondary }}>RM {parseFloat(c.amount || 0).toFixed(2)}</td>
+                                          <td style={{ padding: '8px 14px' }}>
+                                            <span style={{
+                                              fontSize: '10px', fontWeight: '700', padding: '2px 9px', borderRadius: radius.full, textTransform: 'capitalize',
+                                              background: c.status === 'approved' ? colors.successBg : c.status === 'rejected' ? colors.dangerBg : colors.warningBg,
+                                              color: c.status === 'approved' ? colors.successText : c.status === 'rejected' ? colors.dangerText : colors.warningText,
+                                            }}>{c.status}</span>
+                                          </td>
+                                        </tr>
+                                      )
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
         )}
       </div>
     </div>
