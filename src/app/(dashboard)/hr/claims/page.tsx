@@ -49,7 +49,7 @@ export default function HRClaimsPage() {
     const [y, m] = month.split('-').map(Number)
     const { data } = await supabase.from('claims')
       .select('*, profiles!claims_employee_id_fkey(full_name, employee_id, department)')
-      .eq('year', y).eq('month', m)
+      .eq('year', y).eq('month', m).eq('status', 'approved')
     setMonthlyClaims(data || [])
     setLoadingMonthly(false)
   }
@@ -111,11 +111,8 @@ export default function HRClaimsPage() {
     const map: Record<string, any> = {}
     monthlyClaims.forEach(c => {
       const key = c.employee_id
-      if (!map[key]) map[key] = { employee_id: key, profile: c.profiles, approvedTotal: 0, pendingTotal: 0, rejectedTotal: 0 }
-      const amt = parseFloat(c.amount || 0)
-      if (c.status === 'approved') map[key].approvedTotal += amt
-      else if (c.status === 'pending') map[key].pendingTotal += amt
-      else if (c.status === 'rejected') map[key].rejectedTotal += amt
+      if (!map[key]) map[key] = { employee_id: key, profile: c.profiles, approvedTotal: 0 }
+      map[key].approvedTotal += parseFloat(c.amount || 0)
     })
     return Object.values(map).sort((a: any, b: any) => (a.profile?.full_name || '').localeCompare(b.profile?.full_name || ''))
   })()
@@ -304,16 +301,16 @@ export default function HRClaimsPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ background: colors.borderLight, borderBottom: `1px solid ${colors.border}` }}>
-                    {['Employee', 'Department', 'Approved', 'Pending', 'Rejected'].map(h => (
+                    {['Employee', 'Department', 'Approved'].map(h => (
                       <th key={h} style={{ padding: '11px 16px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {loadingMonthly ? (
-                    <tr><td colSpan={5} style={{ textAlign: 'center', padding: '48px', color: colors.textMuted, fontSize: font.base }}>Loading...</td></tr>
+                    <tr><td colSpan={3} style={{ textAlign: 'center', padding: '48px', color: colors.textMuted, fontSize: font.base }}>Loading...</td></tr>
                   ) : filteredMonthlySummary.length === 0 ? (
-                    <tr><td colSpan={5} style={{ textAlign: 'center', padding: '48px', color: colors.textMuted, fontSize: font.base }}>No claims for this month</td></tr>
+                    <tr><td colSpan={3} style={{ textAlign: 'center', padding: '48px', color: colors.textMuted, fontSize: font.base }}>No approved claims for this month</td></tr>
                   ) : filteredMonthlySummary.map((s: any) => {
                     const isExpanded = expandedEmployee === s.employee_id
                     const empClaims = monthlyClaims
@@ -343,17 +340,15 @@ export default function HRClaimsPage() {
                           </td>
                           <td style={{ padding: '13px 16px', fontSize: font.sm, color: colors.textSecondary }}>{s.profile?.department || '-'}</td>
                           <td style={{ padding: '13px 16px', fontSize: font.sm, fontWeight: '700', color: colors.successText }}>RM {s.approvedTotal.toFixed(2)}</td>
-                          <td style={{ padding: '13px 16px', fontSize: font.sm, fontWeight: '700', color: colors.warningText }}>RM {s.pendingTotal.toFixed(2)}</td>
-                          <td style={{ padding: '13px 16px', fontSize: font.sm, fontWeight: '700', color: colors.dangerText }}>RM {s.rejectedTotal.toFixed(2)}</td>
                         </tr>
                         {isExpanded && (
                           <tr style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
-                            <td colSpan={5} style={{ padding: '0 16px 16px 60px', background: colors.pageBg }}>
+                            <td colSpan={3} style={{ padding: '0 16px 16px 60px', background: colors.pageBg }}>
                               <div style={{ background: 'white', borderRadius: radius.md, overflow: 'hidden', border: `1px solid ${colors.borderLight}` }}>
                                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                                   <thead>
                                     <tr style={{ background: colors.borderLight }}>
-                                      {['Type', 'Description', 'Date', 'Amount', 'Status'].map(h => (
+                                      {['Type', 'Description', 'Date', 'Amount'].map(h => (
                                         <th key={h} style={{ padding: '8px 14px', textAlign: 'left', fontSize: '10px', fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{h}</th>
                                       ))}
                                     </tr>
@@ -379,13 +374,6 @@ export default function HRClaimsPage() {
                                             {new Date(c.claim_date || c.created_at).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}
                                           </td>
                                           <td style={{ padding: '8px 14px', fontSize: font.sm, color: colors.textSecondary }}>RM {parseFloat(c.amount || 0).toFixed(2)}</td>
-                                          <td style={{ padding: '8px 14px' }}>
-                                            <span style={{
-                                              fontSize: '10px', fontWeight: '700', padding: '2px 9px', borderRadius: radius.full, textTransform: 'capitalize',
-                                              background: c.status === 'approved' ? colors.successBg : c.status === 'rejected' ? colors.dangerBg : colors.warningBg,
-                                              color: c.status === 'approved' ? colors.successText : c.status === 'rejected' ? colors.dangerText : colors.warningText,
-                                            }}>{c.status}</span>
-                                          </td>
                                         </tr>
                                       )
                                     })}
