@@ -176,6 +176,12 @@ export default function LeavePage() {
     const days = (req.total_hours || 0) / 8
     if (!confirm(`Withdraw this ${req.leave_type?.name} request (${formatDate(req.start_date)}${req.end_date !== req.start_date ? ` → ${formatDate(req.end_date)}` : ''}, ${days} day(s))?`)) return
 
+    const { error } = await supabase.from('leave_requests').update({ status: 'withdrawn' }).eq('id', req.id)
+    if (error) {
+      setMsg({ type: 'error', text: `Failed to withdraw: ${error.message}` })
+      return
+    }
+
     if (req.status === 'approved') {
       const year = new Date(req.start_date).getFullYear()
       const { data: ent } = await supabase.from('leave_entitlements').select('id, used_hours')
@@ -185,13 +191,12 @@ export default function LeavePage() {
       }
     }
 
-    await supabase.from('leave_requests').update({ status: 'withdrawn' }).eq('id', req.id)
-
     const msgText = `Hi, ${profile?.full_name} has withdrawn their ${req.leave_type?.name} request for ${formatDate(req.start_date)}${req.end_date !== req.start_date ? ` → ${formatDate(req.end_date)}` : ''}.`
     if (hrSettings.hr_whatsapp) {
       window.open(generateWhatsAppLink(hrSettings.hr_whatsapp, msgText), '_blank')
     }
 
+    setMsg({ type: 'success', text: 'Leave request withdrawn.' })
     loadData()
   }
 
