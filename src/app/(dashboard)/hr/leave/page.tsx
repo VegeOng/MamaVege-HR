@@ -9,6 +9,7 @@ const FILTERS = [
   { id: 'pending', label: 'Pending', icon: <Clock size={13} /> },
   { id: 'approved', label: 'Approved', icon: <CheckCircle2 size={13} /> },
   { id: 'rejected', label: 'Rejected', icon: <XCircle size={13} /> },
+  { id: 'withdrawn', label: 'Withdrawn', icon: <XCircle size={13} /> },
   { id: 'all', label: 'All', icon: <ListFilter size={13} /> },
 ]
 
@@ -298,8 +299,8 @@ export default function HRLeavePage() {
                       ) : (
                         <span style={{
                           fontSize: '11px', fontWeight: '700', padding: '4px 12px', borderRadius: radius.full, textTransform: 'capitalize',
-                          background: r.status === 'approved' ? colors.successBg : colors.dangerBg,
-                          color: r.status === 'approved' ? colors.successText : colors.dangerText,
+                          background: r.status === 'approved' ? colors.successBg : r.status === 'withdrawn' ? colors.borderLight : colors.dangerBg,
+                          color: r.status === 'approved' ? colors.successText : r.status === 'withdrawn' ? colors.textMuted : colors.dangerText,
                         }}>{r.status}</span>
                       )}
                     </div>

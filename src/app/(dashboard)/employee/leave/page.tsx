@@ -169,7 +169,31 @@ export default function LeavePage() {
     approved: { bg: colors.successBg, color: colors.successText },
     rejected: { bg: colors.dangerBg, color: colors.dangerText },
     pending: { bg: colors.warningBg, color: colors.warningText },
+    withdrawn: { bg: colors.borderLight, color: colors.textMuted },
   }[s] || { bg: colors.borderLight, color: colors.textMuted })
+
+  async function handleWithdraw(req: any) {
+    const days = (req.total_hours || 0) / 8
+    if (!confirm(`Withdraw this ${req.leave_type?.name} request (${formatDate(req.start_date)}${req.end_date !== req.start_date ? ` → ${formatDate(req.end_date)}` : ''}, ${days} day(s))?`)) return
+
+    if (req.status === 'approved') {
+      const year = new Date(req.start_date).getFullYear()
+      const { data: ent } = await supabase.from('leave_entitlements').select('id, used_hours')
+        .eq('employee_id', profile.id).eq('leave_type_id', req.leave_type_id).eq('year', year).maybeSingle()
+      if (ent) {
+        await supabase.from('leave_entitlements').update({ used_hours: Math.max(0, (ent.used_hours || 0) - (req.total_hours || 0)) }).eq('id', ent.id)
+      }
+    }
+
+    await supabase.from('leave_requests').update({ status: 'withdrawn' }).eq('id', req.id)
+
+    const msgText = `Hi, ${profile?.full_name} has withdrawn their ${req.leave_type?.name} request for ${formatDate(req.start_date)}${req.end_date !== req.start_date ? ` → ${formatDate(req.end_date)}` : ''}.`
+    if (hrSettings.hr_whatsapp) {
+      window.open(generateWhatsAppLink(hrSettings.hr_whatsapp, msgText), '_blank')
+    }
+
+    loadData()
+  }
 
   const pendingCount = requests.filter(r => r.status === 'pending').length
   const approvedDays = requests.filter(r => r.status === 'approved').reduce((s, r) => s + (r.total_hours || 0) / 8, 0)
@@ -388,8 +412,8 @@ export default function LeavePage() {
             </div>
           ) : (
             <div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px 80px 100px', gap: '8px', padding: '8px 0', borderBottom: `1px solid ${colors.border}`, marginBottom: '4px' }}>
-                {['Type / Reason', 'Dates', 'Days', 'Status'].map(h => (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px 80px 100px 90px', gap: '8px', padding: '8px 0', borderBottom: `1px solid ${colors.border}`, marginBottom: '4px' }}>
+                {['Type / Reason', 'Dates', 'Days', 'Status', ''].map(h => (
                   <p key={h} style={{ margin: 0, fontSize: font.xs, fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</p>
                 ))}
               </div>
@@ -398,7 +422,7 @@ export default function LeavePage() {
                 const days = (req.total_hours || 0) / 8
                 return (
                   <div key={req.id} style={{
-                    display: 'grid', gridTemplateColumns: '1fr 140px 80px 100px', gap: '8px',
+                    display: 'grid', gridTemplateColumns: '1fr 140px 80px 100px 90px', gap: '8px',
                     padding: '12px 0', borderBottom: i < requests.length - 1 ? `1px solid ${colors.borderLight}` : 'none',
                     alignItems: 'center',
                   }}>
@@ -416,6 +440,15 @@ export default function LeavePage() {
                     <span style={{ fontSize: font.xs, fontWeight: '700', padding: '3px 10px', borderRadius: radius.full, background: s.bg, color: s.color, textTransform: 'capitalize', display: 'inline-block', width: 'fit-content' }}>
                       {req.status}
                     </span>
+                    {(req.status === 'pending' || req.status === 'approved') ? (
+                      <button onClick={() => handleWithdraw(req)} style={{
+                        padding: '5px 10px', background: colors.dangerBg, color: colors.dangerText,
+                        border: 'none', borderRadius: radius.sm, fontSize: '11px', fontWeight: '700',
+                        cursor: 'pointer', width: 'fit-content',
+                      }}>
+                        Withdraw
+                      </button>
+                    ) : <span />}
                   </div>
                 )
               })}
