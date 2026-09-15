@@ -116,6 +116,10 @@ export default function HRLeavePage() {
     return new Date(d).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })
   }
 
+  function fmtDateTime(d: string) {
+    return new Date(d).toLocaleString('en-MY', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  }
+
   const pendingCount = requests.filter(r => r.status === 'pending').length
   const pendingDays = requests.filter(r => r.status === 'pending').reduce((s, r) => s + (r.total_hours || 0) / 8, 0)
 
@@ -257,6 +261,10 @@ export default function HRLeavePage() {
                             Reason: {r.reviewer_notes}
                           </p>
                         )}
+                        <p style={{ margin: '6px 0 0', fontSize: '11px', color: colors.textMuted }}>
+                          Submitted: {fmtDateTime(r.created_at)}
+                          {r.reviewed_at && ` · ${r.status === 'rejected' ? 'Rejected' : 'Approved'}: ${fmtDateTime(r.reviewed_at)}`}
+                        </p>
                       </div>
                     </div>
 
