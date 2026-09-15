@@ -15,6 +15,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [loading, setLoading] = useState(true)
   const [isMobile, setIsMobile] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [pendingLeaveCount, setPendingLeaveCount] = useState(0)
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
@@ -30,6 +31,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
     load()
   }, [])
+
+  useEffect(() => {
+    if (profile?.role !== 'hr') return
+    supabase.from('leave_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending')
+      .then(({ count }) => setPendingLeaveCount(count || 0))
+  }, [profile?.role, pathname])
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768)
@@ -84,7 +91,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { href: '/hr/dashboard', label: 'HR Dashboard', icon: <BarChart3 size={15} /> },
     { href: '/hr/employees', label: 'Employees', icon: <Users size={15} /> },
     { href: '/hr/attendance', label: 'Attendance', icon: <Clock size={15} /> },
-    { href: '/hr/leave', label: 'Leave', icon: <CalendarDays size={15} /> },
+    { href: '/hr/leave', label: 'Leave', icon: <CalendarDays size={15} />, badge: pendingLeaveCount },
     { href: '/hr/ot', label: 'Overtime', icon: <Timer size={15} /> },
     { href: '/hr/claims', label: 'Claims', icon: <Briefcase size={15} /> },
     { href: '/hr/payroll', label: 'Payroll', icon: <Wallet size={15} /> },
@@ -112,7 +119,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     director: '#FBBF24',
   }
 
-  const NavLink = ({ href, label, icon }: { href: string; label: string; icon: React.ReactNode }) => {
+  const NavLink = ({ href, label, icon, badge }: { href: string; label: string; icon: React.ReactNode; badge?: number }) => {
     const active = pathname === href
     return (
       <Link href={href} style={{
@@ -126,7 +133,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       }}>
         <span style={{ opacity: active ? 1 : 0.7 }}>{icon}</span>
         {label}
-        {active && <ChevronRight size={12} style={{ marginLeft: 'auto', opacity: 0.6 }} />}
+        {!!badge && (
+          <span style={{
+            marginLeft: active ? '8px' : 'auto', flexShrink: 0,
+            background: '#EF4444', color: 'white', fontSize: '10px', fontWeight: '700',
+            borderRadius: '999px', padding: '1px 7px', minWidth: '18px', textAlign: 'center',
+          }}>{badge}</span>
+        )}
+        {active && <ChevronRight size={12} style={{ marginLeft: badge ? '8px' : 'auto', opacity: 0.6 }} />}
       </Link>
     )
   }
