@@ -134,8 +134,11 @@ export default function HRLeavePage() {
 
     const container = document.createElement('div')
     container.style.position = 'fixed'
-    container.style.left = '-9999px'
     container.style.top = '0'
+    container.style.left = '0'
+    container.style.zIndex = '-1'
+    container.style.opacity = '0'
+    container.style.pointerEvents = 'none'
     container.style.width = '210mm'
     container.style.background = 'white'
     container.style.padding = '40px'
@@ -160,6 +163,8 @@ export default function HRLeavePage() {
       <p style="margin-top: 40px; font-size: 11px; color: #94A3B8;">Computer-generated document · MamaVege HR System</p>
     `
     document.body.appendChild(container)
+    // Let the browser paint the newly-inserted content before html2canvas captures it
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
 
     const html2pdf = (await import('html2pdf.js')).default
     const filename = `Leave_${r.profiles?.employee_id || 'employee'}_${r.start_date}.pdf`
@@ -167,7 +172,7 @@ export default function HRLeavePage() {
       margin: 10,
       filename,
       image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true },
+      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
     }).from(container).save()
 
