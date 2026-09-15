@@ -133,12 +133,9 @@ export default function HRLeavePage() {
     const days = (r.total_hours || 0) / 8
 
     const container = document.createElement('div')
-    container.style.position = 'fixed'
+    container.style.position = 'absolute'
     container.style.top = '0'
-    container.style.left = '0'
-    container.style.zIndex = '-1'
-    container.style.opacity = '0'
-    container.style.pointerEvents = 'none'
+    container.style.left = '-99999px'
     container.style.width = '210mm'
     container.style.background = 'white'
     container.style.padding = '40px'
