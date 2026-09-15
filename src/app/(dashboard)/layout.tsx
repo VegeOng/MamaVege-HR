@@ -16,6 +16,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [isMobile, setIsMobile] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [pendingLeaveCount, setPendingLeaveCount] = useState(0)
+  const [pendingClaimsCount, setPendingClaimsCount] = useState(0)
+  const [pendingOtCount, setPendingOtCount] = useState(0)
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
@@ -36,6 +38,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (profile?.role !== 'hr') return
     supabase.from('leave_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending')
       .then(({ count }) => setPendingLeaveCount(count || 0))
+    supabase.from('claims').select('id', { count: 'exact', head: true }).eq('status', 'pending')
+      .then(({ count }) => setPendingClaimsCount(count || 0))
+    supabase.from('ot_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending')
+      .then(({ count }) => setPendingOtCount(count || 0))
   }, [profile?.role, pathname])
 
   useEffect(() => {
@@ -92,8 +98,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { href: '/hr/employees', label: 'Employees', icon: <Users size={15} /> },
     { href: '/hr/attendance', label: 'Attendance', icon: <Clock size={15} /> },
     { href: '/hr/leave', label: 'Leave', icon: <CalendarDays size={15} />, badge: pendingLeaveCount },
-    { href: '/hr/ot', label: 'Overtime', icon: <Timer size={15} /> },
-    { href: '/hr/claims', label: 'Claims', icon: <Briefcase size={15} /> },
+    { href: '/hr/ot', label: 'Overtime', icon: <Timer size={15} />, badge: pendingOtCount },
+    { href: '/hr/claims', label: 'Claims', icon: <Briefcase size={15} />, badge: pendingClaimsCount },
     { href: '/hr/payroll', label: 'Payroll', icon: <Wallet size={15} /> },
     { href: '/hr/holidays', label: 'Holidays', icon: <CalendarCheck size={15} /> },
     { href: '/hr/settings', label: 'Settings', icon: <Settings size={15} /> },
