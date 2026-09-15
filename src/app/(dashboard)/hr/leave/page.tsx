@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, Fragment } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Check, X, FileText, Clock, CheckCircle2, XCircle, ListFilter, CalendarDays, Search, ChevronDown, ChevronRight } from 'lucide-react'
+import { Check, X, FileText, Clock, CheckCircle2, XCircle, ListFilter, CalendarDays, Search, ChevronDown, ChevronRight, Download } from 'lucide-react'
 import { colors, radius, shadow, styles, font } from '@/lib/design'
 import { formatDate, generateWhatsAppLink } from '@/lib/utils'
 
@@ -38,6 +38,7 @@ export default function HRLeavePage() {
   const [loadingMonthly, setLoadingMonthly] = useState(true)
   const [monthlySearch, setMonthlySearch] = useState('')
   const [expandedEmployee, setExpandedEmployee] = useState<string | null>(null)
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const supabase = createClient()
 
   useEffect(() => { loadTypes() }, [])
@@ -119,6 +120,59 @@ export default function HRLeavePage() {
 
   function fmtDateTime(d: string) {
     return new Date(d).toLocaleString('en-MY', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  }
+
+  async function handleDownloadPdf(r: any) {
+    setDownloadingId(r.id)
+    let approverName = ''
+    if (r.reviewed_by) {
+      const { data } = await supabase.from('profiles').select('full_name').eq('id', r.reviewed_by).maybeSingle()
+      approverName = data?.full_name || ''
+    }
+    const type = leaveTypes[r.leave_type_id] || { name: 'Leave' }
+    const days = (r.total_hours || 0) / 8
+
+    const container = document.createElement('div')
+    container.style.position = 'fixed'
+    container.style.left = '-9999px'
+    container.style.top = '0'
+    container.style.width = '210mm'
+    container.style.background = 'white'
+    container.style.padding = '40px'
+    container.style.fontFamily = 'Arial, sans-serif'
+    container.innerHTML = `
+      <div style="border-bottom: 3px solid #1B4332; padding-bottom: 16px; margin-bottom: 24px;">
+        <p style="margin:0; font-size: 11px; color: #64748B; text-transform: uppercase; letter-spacing: 0.06em;">Mama Global International Sdn Bhd (1247551-X)</p>
+        <h1 style="margin: 8px 0 0; font-size: 22px; color: #1B4332;">Leave Approval 假期批准单</h1>
+      </div>
+      <table style="width:100%; border-collapse: collapse; font-size: 14px; color: #1E293B;">
+        <tr><td style="padding: 8px 0; color:#64748B; width: 160px;">Employee 员工</td><td style="padding: 8px 0; font-weight: 700;">${r.profiles?.full_name || '-'} (${r.profiles?.employee_id || '-'})</td></tr>
+        <tr><td style="padding: 8px 0; color:#64748B;">Department 部门</td><td style="padding: 8px 0;">${r.profiles?.department || '-'}</td></tr>
+        <tr><td style="padding: 8px 0; color:#64748B;">Leave Type 假期类型</td><td style="padding: 8px 0; font-weight: 700;">${type.name}</td></tr>
+        <tr><td style="padding: 8px 0; color:#64748B;">Dates 日期</td><td style="padding: 8px 0;">${fmtDate(r.start_date)}${r.end_date !== r.start_date ? ` → ${fmtDate(r.end_date)}` : ''}</td></tr>
+        <tr><td style="padding: 8px 0; color:#64748B;">Duration 天数</td><td style="padding: 8px 0; font-weight: 700;">${days} day(s)</td></tr>
+        <tr><td style="padding: 8px 0; color:#64748B;">Reason 原因</td><td style="padding: 8px 0;">${r.reason || '-'}</td></tr>
+        <tr><td style="padding: 8px 0; color:#64748B;">Submitted 提交日期</td><td style="padding: 8px 0;">${fmtDateTime(r.created_at)}</td></tr>
+        <tr><td style="padding: 8px 0; color:#64748B;">Status 状态</td><td style="padding: 8px 0;"><span style="background:#DCFCE7; color:#15803D; font-weight:700; padding: 3px 12px; border-radius: 999px; font-size: 12px;">APPROVED</span></td></tr>
+        <tr><td style="padding: 8px 0; color:#64748B;">Approved On 批准日期</td><td style="padding: 8px 0;">${r.reviewed_at ? fmtDateTime(r.reviewed_at) : '-'}</td></tr>
+        ${approverName ? `<tr><td style="padding: 8px 0; color:#64748B;">Approved By 批准人</td><td style="padding: 8px 0;">${approverName}</td></tr>` : ''}
+      </table>
+      <p style="margin-top: 40px; font-size: 11px; color: #94A3B8;">Computer-generated document · MamaVege HR System</p>
+    `
+    document.body.appendChild(container)
+
+    const html2pdf = (await import('html2pdf.js')).default
+    const filename = `Leave_${r.profiles?.employee_id || 'employee'}_${r.start_date}.pdf`
+    await html2pdf().set({
+      margin: 10,
+      filename,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    }).from(container).save()
+
+    document.body.removeChild(container)
+    setDownloadingId(null)
   }
 
   const pendingCount = requests.filter(r => r.status === 'pending').length
@@ -297,11 +351,22 @@ export default function HRLeavePage() {
                           </div>
                         )
                       ) : (
-                        <span style={{
-                          fontSize: '11px', fontWeight: '700', padding: '4px 12px', borderRadius: radius.full, textTransform: 'capitalize',
-                          background: r.status === 'approved' ? colors.successBg : r.status === 'withdrawn' ? colors.borderLight : colors.dangerBg,
-                          color: r.status === 'approved' ? colors.successText : r.status === 'withdrawn' ? colors.textMuted : colors.dangerText,
-                        }}>{r.status}</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end' }}>
+                          <span style={{
+                            fontSize: '11px', fontWeight: '700', padding: '4px 12px', borderRadius: radius.full, textTransform: 'capitalize',
+                            background: r.status === 'approved' ? colors.successBg : r.status === 'withdrawn' ? colors.borderLight : colors.dangerBg,
+                            color: r.status === 'approved' ? colors.successText : r.status === 'withdrawn' ? colors.textMuted : colors.dangerText,
+                          }}>{r.status}</span>
+                          {r.status === 'approved' && (
+                            <button onClick={() => handleDownloadPdf(r)} disabled={downloadingId === r.id} style={{
+                              display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 10px',
+                              background: colors.infoBg, color: colors.info, border: 'none', borderRadius: radius.sm,
+                              fontSize: '11px', fontWeight: '700', cursor: 'pointer', opacity: downloadingId === r.id ? 0.6 : 1,
+                            }}>
+                              <Download size={11} />{downloadingId === r.id ? '...' : 'Download'}
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
