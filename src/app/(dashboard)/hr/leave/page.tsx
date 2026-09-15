@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, Fragment } from 'react'
+import { useEffect, useState, useRef, Fragment } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Check, X, FileText, Clock, CheckCircle2, XCircle, ListFilter, CalendarDays, Search, ChevronDown, ChevronRight, Download } from 'lucide-react'
 import { colors, radius, shadow, styles, font } from '@/lib/design'
@@ -39,11 +39,34 @@ export default function HRLeavePage() {
   const [monthlySearch, setMonthlySearch] = useState('')
   const [expandedEmployee, setExpandedEmployee] = useState<string | null>(null)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
+  const [printRequest, setPrintRequest] = useState<any | null>(null)
+  const [printApprover, setPrintApprover] = useState('')
+  const printRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
 
   useEffect(() => { loadTypes() }, [])
   useEffect(() => { loadData() }, [filter])
   useEffect(() => { if (viewMode === 'monthly') loadMonthlyData() }, [viewMode, month])
+
+  useEffect(() => {
+    if (!printRequest) return
+    let cancelled = false
+    ;(async () => {
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+      if (cancelled || !printRef.current) return
+      const html2pdf = (await import('html2pdf.js')).default
+      const filename = `Leave_${printRequest.profiles?.employee_id || 'employee'}_${printRequest.start_date}.pdf`
+      await html2pdf().set({
+        margin: 10,
+        filename,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      }).from(printRef.current).save()
+      if (!cancelled) { setPrintRequest(null); setDownloadingId(null) }
+    })()
+    return () => { cancelled = true }
+  }, [printRequest])
 
   async function loadMonthlyData() {
     setLoadingMonthly(true)
@@ -129,52 +152,8 @@ export default function HRLeavePage() {
       const { data } = await supabase.from('profiles').select('full_name').eq('id', r.reviewed_by).maybeSingle()
       approverName = data?.full_name || ''
     }
-    const type = leaveTypes[r.leave_type_id] || { name: 'Leave' }
-    const days = (r.total_hours || 0) / 8
-
-    const container = document.createElement('div')
-    container.style.position = 'absolute'
-    container.style.top = '0'
-    container.style.left = '-99999px'
-    container.style.width = '210mm'
-    container.style.background = 'white'
-    container.style.padding = '40px'
-    container.style.fontFamily = 'Arial, sans-serif'
-    container.innerHTML = `
-      <div style="border-bottom: 3px solid #1B4332; padding-bottom: 16px; margin-bottom: 24px;">
-        <p style="margin:0; font-size: 11px; color: #64748B; text-transform: uppercase; letter-spacing: 0.06em;">Mama Global International Sdn Bhd (1247551-X)</p>
-        <h1 style="margin: 8px 0 0; font-size: 22px; color: #1B4332;">Leave Approval 假期批准单</h1>
-      </div>
-      <table style="width:100%; border-collapse: collapse; font-size: 14px; color: #1E293B;">
-        <tr><td style="padding: 8px 0; color:#64748B; width: 160px;">Employee 员工</td><td style="padding: 8px 0; font-weight: 700;">${r.profiles?.full_name || '-'} (${r.profiles?.employee_id || '-'})</td></tr>
-        <tr><td style="padding: 8px 0; color:#64748B;">Department 部门</td><td style="padding: 8px 0;">${r.profiles?.department || '-'}</td></tr>
-        <tr><td style="padding: 8px 0; color:#64748B;">Leave Type 假期类型</td><td style="padding: 8px 0; font-weight: 700;">${type.name}</td></tr>
-        <tr><td style="padding: 8px 0; color:#64748B;">Dates 日期</td><td style="padding: 8px 0;">${fmtDate(r.start_date)}${r.end_date !== r.start_date ? ` → ${fmtDate(r.end_date)}` : ''}</td></tr>
-        <tr><td style="padding: 8px 0; color:#64748B;">Duration 天数</td><td style="padding: 8px 0; font-weight: 700;">${days} day(s)</td></tr>
-        <tr><td style="padding: 8px 0; color:#64748B;">Reason 原因</td><td style="padding: 8px 0;">${r.reason || '-'}</td></tr>
-        <tr><td style="padding: 8px 0; color:#64748B;">Submitted 提交日期</td><td style="padding: 8px 0;">${fmtDateTime(r.created_at)}</td></tr>
-        <tr><td style="padding: 8px 0; color:#64748B;">Status 状态</td><td style="padding: 8px 0;"><span style="background:#DCFCE7; color:#15803D; font-weight:700; padding: 3px 12px; border-radius: 999px; font-size: 12px;">APPROVED</span></td></tr>
-        <tr><td style="padding: 8px 0; color:#64748B;">Approved On 批准日期</td><td style="padding: 8px 0;">${r.reviewed_at ? fmtDateTime(r.reviewed_at) : '-'}</td></tr>
-        ${approverName ? `<tr><td style="padding: 8px 0; color:#64748B;">Approved By 批准人</td><td style="padding: 8px 0;">${approverName}</td></tr>` : ''}
-      </table>
-      <p style="margin-top: 40px; font-size: 11px; color: #94A3B8;">Computer-generated document · MamaVege HR System</p>
-    `
-    document.body.appendChild(container)
-    // Let the browser paint the newly-inserted content before html2canvas captures it
-    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
-
-    const html2pdf = (await import('html2pdf.js')).default
-    const filename = `Leave_${r.profiles?.employee_id || 'employee'}_${r.start_date}.pdf`
-    await html2pdf().set({
-      margin: 10,
-      filename,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-    }).from(container).save()
-
-    document.body.removeChild(container)
-    setDownloadingId(null)
+    setPrintApprover(approverName)
+    setPrintRequest(r)
   }
 
   const pendingCount = requests.filter(r => r.status === 'pending').length
@@ -492,6 +471,35 @@ export default function HRLeavePage() {
         </>
         )}
       </div>
+
+      {printRequest && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
+            <div ref={printRef} style={{ width: '210mm', maxWidth: '90vw', maxHeight: '80vh', overflow: 'auto', background: 'white', padding: '40px', fontFamily: 'Arial, sans-serif' }}>
+              <div style={{ borderBottom: '3px solid #1B4332', paddingBottom: '16px', marginBottom: '24px' }}>
+                <p style={{ margin: 0, fontSize: '11px', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Mama Global International Sdn Bhd (1247551-X)</p>
+                <h1 style={{ margin: '8px 0 0', fontSize: '22px', color: '#1B4332' }}>Leave Approval 假期批准单</h1>
+              </div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px', color: '#1E293B' }}>
+                <tbody>
+                  <tr><td style={{ padding: '8px 0', color: '#64748B', width: '160px' }}>Employee 员工</td><td style={{ padding: '8px 0', fontWeight: 700 }}>{printRequest.profiles?.full_name || '-'} ({printRequest.profiles?.employee_id || '-'})</td></tr>
+                  <tr><td style={{ padding: '8px 0', color: '#64748B' }}>Department 部门</td><td style={{ padding: '8px 0' }}>{printRequest.profiles?.department || '-'}</td></tr>
+                  <tr><td style={{ padding: '8px 0', color: '#64748B' }}>Leave Type 假期类型</td><td style={{ padding: '8px 0', fontWeight: 700 }}>{(leaveTypes[printRequest.leave_type_id] || { name: 'Leave' }).name}</td></tr>
+                  <tr><td style={{ padding: '8px 0', color: '#64748B' }}>Dates 日期</td><td style={{ padding: '8px 0' }}>{fmtDate(printRequest.start_date)}{printRequest.end_date !== printRequest.start_date ? ` → ${fmtDate(printRequest.end_date)}` : ''}</td></tr>
+                  <tr><td style={{ padding: '8px 0', color: '#64748B' }}>Duration 天数</td><td style={{ padding: '8px 0', fontWeight: 700 }}>{(printRequest.total_hours || 0) / 8} day(s)</td></tr>
+                  <tr><td style={{ padding: '8px 0', color: '#64748B' }}>Reason 原因</td><td style={{ padding: '8px 0' }}>{printRequest.reason || '-'}</td></tr>
+                  <tr><td style={{ padding: '8px 0', color: '#64748B' }}>Submitted 提交日期</td><td style={{ padding: '8px 0' }}>{fmtDateTime(printRequest.created_at)}</td></tr>
+                  <tr><td style={{ padding: '8px 0', color: '#64748B' }}>Status 状态</td><td style={{ padding: '8px 0' }}><span style={{ background: '#DCFCE7', color: '#15803D', fontWeight: 700, padding: '3px 12px', borderRadius: '999px', fontSize: '12px' }}>APPROVED</span></td></tr>
+                  <tr><td style={{ padding: '8px 0', color: '#64748B' }}>Approved On 批准日期</td><td style={{ padding: '8px 0' }}>{printRequest.reviewed_at ? fmtDateTime(printRequest.reviewed_at) : '-'}</td></tr>
+                  {printApprover && <tr><td style={{ padding: '8px 0', color: '#64748B' }}>Approved By 批准人</td><td style={{ padding: '8px 0' }}>{printApprover}</td></tr>}
+                </tbody>
+              </table>
+              <p style={{ marginTop: '40px', fontSize: '11px', color: '#94A3B8' }}>Computer-generated document · MamaVege HR System</p>
+            </div>
+            <p style={{ color: 'white', fontSize: font.sm, fontWeight: '600' }}>Generating PDF...</p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
