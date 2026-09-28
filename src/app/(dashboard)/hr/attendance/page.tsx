@@ -9,6 +9,7 @@ const STATUS_STYLE: Record<string, { bg: string; color: string; label: string }>
   late:     { bg: colors.warningBg, color: colors.warningText, label: 'Late' },
   absent:   { bg: colors.dangerBg,  color: colors.dangerText,  label: 'Absent' },
   'half-day': { bg: colors.infoBg, color: colors.infoText,     label: 'Half Day' },
+  'off-day': { bg: colors.borderLight, color: colors.textMuted, label: 'Off Day' },
 }
 
 const FILTERS = [
@@ -86,11 +87,27 @@ export default function HRAttendancePage() {
     s.profile?.employee_id?.toLowerCase().includes(search.toLowerCase())
   )
 
+  // Fills in Saturdays/Sundays with no clock-in as "Off Day" instead of leaving a silent gap
+  function buildEmployeeDays(employeeId: string, profile: any) {
+    const [y, m] = month.split('-').map(Number)
+    const daysInMonth = new Date(y, m, 0).getDate()
+    const recordsByDate: Record<string, any> = {}
+    monthlyRecords.filter(r => r.employee_id === employeeId).forEach(r => { recordsByDate[r.date] = r })
+    const days: any[] = []
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = `${month}-${String(d).padStart(2, '0')}`
+      if (recordsByDate[dateStr]) { days.push(recordsByDate[dateStr]); continue }
+      const dow = new Date(y, m - 1, d).getDay()
+      if (dow === 0 || dow === 6) {
+        days.push({ id: dateStr, date: dateStr, status: 'off-day', profiles: profile, isSynthetic: true })
+      }
+    }
+    return days
+  }
+
   function handleExportMonthlyCsv() {
-    const includedIds = new Set(filteredMonthly.map((s: any) => s.employee_id))
-    const detailRows = monthlyRecords
-      .filter(r => includedIds.has(r.employee_id))
-      .slice()
+    const detailRows = filteredMonthly
+      .flatMap((s: any) => buildEmployeeDays(s.employee_id, s.profile))
       .sort((a, b) =>
         (a.profiles?.full_name || '').localeCompare(b.profiles?.full_name || '') ||
         a.date.localeCompare(b.date)
@@ -102,9 +119,9 @@ export default function HRAttendancePage() {
       r.profiles?.employee_id || '-',
       r.profiles?.department || '-',
       r.date,
-      fmt(r.clock_in),
-      fmt(r.clock_out),
-      r.status || '-',
+      r.isSynthetic ? '-' : fmt(r.clock_in),
+      r.isSynthetic ? '-' : fmt(r.clock_out),
+      STATUS_STYLE[r.status]?.label || r.status || '-',
       r.total_hours || 0,
       r.notes || '',
     ])
@@ -323,9 +340,7 @@ export default function HRAttendancePage() {
                       <tr><td colSpan={7} style={{ textAlign: 'center', padding: '48px', color: colors.textMuted, fontSize: font.base }}>No records for this month</td></tr>
                     ) : filteredMonthly.map((s: any) => {
                       const isExpanded = expandedEmployee === s.employee_id
-                      const days = monthlyRecords
-                        .filter(r => r.employee_id === s.employee_id)
-                        .sort((a, b) => a.date.localeCompare(b.date))
+                      const days = buildEmployeeDays(s.employee_id, s.profile)
                       return (
                         <Fragment key={s.employee_id}>
                           <tr
