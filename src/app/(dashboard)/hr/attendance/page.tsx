@@ -87,13 +87,26 @@ export default function HRAttendancePage() {
   )
 
   function handleExportMonthlyCsv() {
-    const header = ['Employee Name', 'Employee ID', 'Department', 'Present', 'Late', 'Absent', 'Half Day', 'Total Hours']
-    const rows = filteredMonthly.map((s: any) => [
-      s.profile?.full_name || '-',
-      s.profile?.employee_id || '-',
-      s.profile?.department || '-',
-      s.present, s.late, s.absent, s.halfDay,
-      s.totalHours.toFixed(1),
+    const includedIds = new Set(filteredMonthly.map((s: any) => s.employee_id))
+    const detailRows = monthlyRecords
+      .filter(r => includedIds.has(r.employee_id))
+      .slice()
+      .sort((a, b) =>
+        (a.profiles?.full_name || '').localeCompare(b.profiles?.full_name || '') ||
+        a.date.localeCompare(b.date)
+      )
+
+    const header = ['Employee Name', 'Employee ID', 'Department', 'Date', 'Check In', 'Check Out', 'Status', 'Total Hours', 'Notes']
+    const rows = detailRows.map(r => [
+      r.profiles?.full_name || '-',
+      r.profiles?.employee_id || '-',
+      r.profiles?.department || '-',
+      r.date,
+      fmt(r.clock_in),
+      fmt(r.clock_out),
+      r.status || '-',
+      r.total_hours || 0,
+      r.notes || '',
     ])
     const csv = [header, ...rows]
       .map(row => row.map((cell: any) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
