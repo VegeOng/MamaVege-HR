@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, Fragment } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Search, Users, CheckCircle2, Clock, XCircle, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react'
+import { Search, Users, CheckCircle2, Clock, XCircle, RefreshCw, ChevronDown, ChevronRight, Download } from 'lucide-react'
 import { colors, radius, shadow, styles, font } from '@/lib/design'
 
 const STATUS_STYLE: Record<string, { bg: string; color: string; label: string }> = {
@@ -85,6 +85,27 @@ export default function HRAttendancePage() {
     s.profile?.full_name?.toLowerCase().includes(search.toLowerCase()) ||
     s.profile?.employee_id?.toLowerCase().includes(search.toLowerCase())
   )
+
+  function handleExportMonthlyCsv() {
+    const header = ['Employee Name', 'Employee ID', 'Department', 'Present', 'Late', 'Absent', 'Half Day', 'Total Hours']
+    const rows = filteredMonthly.map((s: any) => [
+      s.profile?.full_name || '-',
+      s.profile?.employee_id || '-',
+      s.profile?.department || '-',
+      s.present, s.late, s.absent, s.halfDay,
+      s.totalHours.toFixed(1),
+    ])
+    const csv = [header, ...rows]
+      .map(row => row.map((cell: any) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      .join('\r\n')
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `Attendance_${month}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   const filtered = records.filter(r => {
     const matchStatus = filterStatus === 'all' || r.status === filterStatus
@@ -259,6 +280,15 @@ export default function HRAttendancePage() {
                 border: 'none', cursor: 'pointer', background: 'white', color: colors.textMuted, boxShadow: shadow.card,
               }}>
                 <RefreshCw size={13} />Refresh
+              </button>
+              <button onClick={handleExportMonthlyCsv} disabled={filteredMonthly.length === 0} style={{
+                display: 'flex', alignItems: 'center', gap: '6px',
+                padding: '8px 16px', borderRadius: radius.full, fontSize: font.sm, fontWeight: '600',
+                border: 'none', cursor: filteredMonthly.length === 0 ? 'not-allowed' : 'pointer',
+                background: colors.primary, color: 'white', boxShadow: shadow.card,
+                opacity: filteredMonthly.length === 0 ? 0.5 : 1,
+              }}>
+                <Download size={13} />Download Report
               </button>
             </div>
 
