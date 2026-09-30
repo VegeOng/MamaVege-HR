@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, Fragment } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Search, Users, CheckCircle2, Clock, XCircle, RefreshCw, ChevronDown, ChevronRight, Download } from 'lucide-react'
+import { Search, Users, CheckCircle2, Clock, XCircle, RefreshCw, ChevronDown, ChevronRight, Download, MapPin } from 'lucide-react'
 import { colors, radius, shadow, styles, font } from '@/lib/design'
 
 const STATUS_STYLE: Record<string, { bg: string; color: string; label: string }> = {
@@ -247,16 +247,16 @@ export default function HRAttendancePage() {
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: colors.borderLight, borderBottom: `1px solid ${colors.border}` }}>
-                      {['Employee', 'Department', 'Check In', 'Check Out', 'Status', 'Notes'].map(h => (
+                      {['Employee', 'Department', 'Check In', 'Check Out', 'Status', 'Location', 'Notes'].map(h => (
                         <th key={h} style={{ padding: '11px 16px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {loading ? (
-                      <tr><td colSpan={6} style={{ textAlign: 'center', padding: '48px', color: colors.textMuted, fontSize: font.base }}>Loading...</td></tr>
+                      <tr><td colSpan={7} style={{ textAlign: 'center', padding: '48px', color: colors.textMuted, fontSize: font.base }}>Loading...</td></tr>
                     ) : filtered.length === 0 ? (
-                      <tr><td colSpan={6} style={{ textAlign: 'center', padding: '48px', color: colors.textMuted, fontSize: font.base }}>No records for this date</td></tr>
+                      <tr><td colSpan={7} style={{ textAlign: 'center', padding: '48px', color: colors.textMuted, fontSize: font.base }}>No records for this date</td></tr>
                     ) : filtered.map((r) => {
                       const s = STATUS_STYLE[r.status] || { bg: colors.borderLight, color: colors.textMuted, label: r.status }
                       return (
@@ -282,6 +282,14 @@ export default function HRAttendancePage() {
                           <td style={{ padding: '13px 16px', fontSize: font.sm, color: colors.textSecondary }}>{fmt(r.clock_out)}</td>
                           <td style={{ padding: '13px 16px' }}>
                             <span style={{ background: s.bg, color: s.color, padding: '3px 10px', borderRadius: radius.full, fontSize: '11px', fontWeight: '700', textTransform: 'capitalize' }}>{s.label}</span>
+                          </td>
+                          <td style={{ padding: '13px 16px', fontSize: font.sm }}>
+                            {r.clock_in_lat && r.clock_in_lng ? (
+                              <a href={`https://www.google.com/maps?q=${r.clock_in_lat},${r.clock_in_lng}`} target="_blank" rel="noreferrer"
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: colors.info, fontWeight: '600', textDecoration: 'none' }}>
+                                <MapPin size={12} />View
+                              </a>
+                            ) : <span style={{ color: colors.textMuted }}>-</span>}
                           </td>
                           <td style={{ padding: '13px 16px', fontSize: font.sm, color: colors.textMuted }}>{r.notes || '-'}</td>
                         </tr>
@@ -377,7 +385,7 @@ export default function HRAttendancePage() {
                                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                                     <thead>
                                       <tr style={{ background: colors.borderLight }}>
-                                        {['Date', 'Check In', 'Check Out', 'Status', 'Hours', 'Notes'].map(h => (
+                                        {['Date', 'Check In', 'Check Out', 'Status', 'Hours', 'Location', 'Notes'].map(h => (
                                           <th key={h} style={{ padding: '8px 14px', textAlign: 'left', fontSize: '10px', fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{h}</th>
                                         ))}
                                       </tr>
@@ -396,6 +404,14 @@ export default function HRAttendancePage() {
                                               <span style={{ background: st.bg, color: st.color, padding: '2px 9px', borderRadius: radius.full, fontSize: '10px', fontWeight: '700', textTransform: 'capitalize' }}>{st.label}</span>
                                             </td>
                                             <td style={{ padding: '8px 14px', fontSize: font.sm, color: colors.textSecondary }}>{r.total_hours ? `${r.total_hours}h` : '-'}</td>
+                                            <td style={{ padding: '8px 14px', fontSize: font.sm }}>
+                                              {r.clock_in_lat && r.clock_in_lng ? (
+                                                <a href={`https://www.google.com/maps?q=${r.clock_in_lat},${r.clock_in_lng}`} target="_blank" rel="noreferrer"
+                                                  style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: colors.info, fontWeight: '600', textDecoration: 'none' }}>
+                                                  <MapPin size={11} />View
+                                                </a>
+                                              ) : <span style={{ color: colors.textMuted }}>-</span>}
+                                            </td>
                                             <td style={{ padding: '8px 14px', fontSize: font.sm, color: colors.textMuted }}>{r.notes || '-'}</td>
                                           </tr>
                                         )
