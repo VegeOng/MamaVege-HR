@@ -113,7 +113,7 @@ export default function HRAttendancePage() {
         a.date.localeCompare(b.date)
       )
 
-    const header = ['Employee Name', 'Employee ID', 'Department', 'Date', 'Check In', 'Check Out', 'Status', 'Total Hours', 'Notes']
+    const header = ['Employee Name', 'Employee ID', 'Department', 'Date', 'Check In', 'Check Out', 'Status', 'Total Hours', 'Clock In Location', 'Clock Out Location', 'Notes']
     const rows = detailRows.map(r => [
       r.profiles?.full_name || '-',
       r.profiles?.employee_id || '-',
@@ -123,6 +123,8 @@ export default function HRAttendancePage() {
       r.isSynthetic ? '-' : fmt(r.clock_out),
       STATUS_STYLE[r.status]?.label || r.status || '-',
       r.total_hours || 0,
+      r.clock_in_lat && r.clock_in_lng ? `${r.clock_in_lat}, ${r.clock_in_lng}` : '',
+      r.clock_out_lat && r.clock_out_lng ? `${r.clock_out_lat}, ${r.clock_out_lng}` : '',
       r.notes || '',
     ])
     const csv = [header, ...rows]
@@ -285,10 +287,15 @@ export default function HRAttendancePage() {
                           </td>
                           <td style={{ padding: '13px 16px', fontSize: font.sm }}>
                             {r.clock_in_lat && r.clock_in_lng ? (
-                              <a href={`https://www.google.com/maps?q=${r.clock_in_lat},${r.clock_in_lng}`} target="_blank" rel="noreferrer"
-                                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: colors.info, fontWeight: '600', textDecoration: 'none' }}>
-                                <MapPin size={12} />View
-                              </a>
+                              <div>
+                                <a href={`https://www.google.com/maps?q=${r.clock_in_lat},${r.clock_in_lng}`} target="_blank" rel="noreferrer"
+                                  style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: colors.info, fontWeight: '600', textDecoration: 'none' }}>
+                                  <MapPin size={12} />View
+                                </a>
+                                <p style={{ margin: '2px 0 0', fontSize: '10px', color: colors.textMuted, fontFamily: 'monospace' }}>
+                                  {r.clock_in_lat.toFixed(5)}, {r.clock_in_lng.toFixed(5)}
+                                </p>
+                              </div>
                             ) : <span style={{ color: colors.textMuted }}>-</span>}
                           </td>
                           <td style={{ padding: '13px 16px', fontSize: font.sm, color: colors.textMuted }}>{r.notes || '-'}</td>
@@ -406,10 +413,15 @@ export default function HRAttendancePage() {
                                             <td style={{ padding: '8px 14px', fontSize: font.sm, color: colors.textSecondary }}>{r.total_hours ? `${r.total_hours}h` : '-'}</td>
                                             <td style={{ padding: '8px 14px', fontSize: font.sm }}>
                                               {r.clock_in_lat && r.clock_in_lng ? (
-                                                <a href={`https://www.google.com/maps?q=${r.clock_in_lat},${r.clock_in_lng}`} target="_blank" rel="noreferrer"
-                                                  style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: colors.info, fontWeight: '600', textDecoration: 'none' }}>
-                                                  <MapPin size={11} />View
-                                                </a>
+                                                <div>
+                                                  <a href={`https://www.google.com/maps?q=${r.clock_in_lat},${r.clock_in_lng}`} target="_blank" rel="noreferrer"
+                                                    style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: colors.info, fontWeight: '600', textDecoration: 'none' }}>
+                                                    <MapPin size={11} />View
+                                                  </a>
+                                                  <p style={{ margin: '2px 0 0', fontSize: '10px', color: colors.textMuted, fontFamily: 'monospace' }}>
+                                                    {r.clock_in_lat.toFixed(5)}, {r.clock_in_lng.toFixed(5)}
+                                                  </p>
+                                                </div>
                                               ) : <span style={{ color: colors.textMuted }}>-</span>}
                                             </td>
                                             <td style={{ padding: '8px 14px', fontSize: font.sm, color: colors.textMuted }}>{r.notes || '-'}</td>
