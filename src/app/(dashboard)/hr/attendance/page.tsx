@@ -19,6 +19,21 @@ const FILTERS = [
   { id: 'absent', label: 'Absent' },
 ]
 
+function LocationPin({ label, lat, lng }: { label: string; lat: number | null | undefined; lng: number | null | undefined }) {
+  if (!lat || !lng) return null
+  return (
+    <div style={{ marginBottom: '4px' }}>
+      <a href={`https://www.google.com/maps?q=${lat},${lng}`} target="_blank" rel="noreferrer"
+        style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: colors.info, fontWeight: '600', textDecoration: 'none', fontSize: '11px' }}>
+        <MapPin size={11} />{label}
+      </a>
+      <p style={{ margin: '1px 0 0', fontSize: '10px', color: colors.textMuted, fontFamily: 'monospace' }}>
+        {lat.toFixed(5)}, {lng.toFixed(5)}
+      </p>
+    </div>
+  )
+}
+
 export default function HRAttendancePage() {
   const [viewMode, setViewMode] = useState<'daily' | 'monthly'>('daily')
   const [records, setRecords] = useState<any[]>([])
@@ -286,16 +301,11 @@ export default function HRAttendancePage() {
                             <span style={{ background: s.bg, color: s.color, padding: '3px 10px', borderRadius: radius.full, fontSize: '11px', fontWeight: '700', textTransform: 'capitalize' }}>{s.label}</span>
                           </td>
                           <td style={{ padding: '13px 16px', fontSize: font.sm }}>
-                            {r.clock_in_lat && r.clock_in_lng ? (
-                              <div>
-                                <a href={`https://www.google.com/maps?q=${r.clock_in_lat},${r.clock_in_lng}`} target="_blank" rel="noreferrer"
-                                  style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: colors.info, fontWeight: '600', textDecoration: 'none' }}>
-                                  <MapPin size={12} />View
-                                </a>
-                                <p style={{ margin: '2px 0 0', fontSize: '10px', color: colors.textMuted, fontFamily: 'monospace' }}>
-                                  {r.clock_in_lat.toFixed(5)}, {r.clock_in_lng.toFixed(5)}
-                                </p>
-                              </div>
+                            {(r.clock_in_lat && r.clock_in_lng) || (r.clock_out_lat && r.clock_out_lng) ? (
+                              <>
+                                <LocationPin label="In" lat={r.clock_in_lat} lng={r.clock_in_lng} />
+                                <LocationPin label="Out" lat={r.clock_out_lat} lng={r.clock_out_lng} />
+                              </>
                             ) : <span style={{ color: colors.textMuted }}>-</span>}
                           </td>
                           <td style={{ padding: '13px 16px', fontSize: font.sm, color: colors.textMuted }}>{r.notes || '-'}</td>
@@ -412,16 +422,11 @@ export default function HRAttendancePage() {
                                             </td>
                                             <td style={{ padding: '8px 14px', fontSize: font.sm, color: colors.textSecondary }}>{r.total_hours ? `${r.total_hours}h` : '-'}</td>
                                             <td style={{ padding: '8px 14px', fontSize: font.sm }}>
-                                              {r.clock_in_lat && r.clock_in_lng ? (
-                                                <div>
-                                                  <a href={`https://www.google.com/maps?q=${r.clock_in_lat},${r.clock_in_lng}`} target="_blank" rel="noreferrer"
-                                                    style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: colors.info, fontWeight: '600', textDecoration: 'none' }}>
-                                                    <MapPin size={11} />View
-                                                  </a>
-                                                  <p style={{ margin: '2px 0 0', fontSize: '10px', color: colors.textMuted, fontFamily: 'monospace' }}>
-                                                    {r.clock_in_lat.toFixed(5)}, {r.clock_in_lng.toFixed(5)}
-                                                  </p>
-                                                </div>
+                                              {(r.clock_in_lat && r.clock_in_lng) || (r.clock_out_lat && r.clock_out_lng) ? (
+                                                <>
+                                                  <LocationPin label="In" lat={r.clock_in_lat} lng={r.clock_in_lng} />
+                                                  <LocationPin label="Out" lat={r.clock_out_lat} lng={r.clock_out_lng} />
+                                                </>
                                               ) : <span style={{ color: colors.textMuted }}>-</span>}
                                             </td>
                                             <td style={{ padding: '8px 14px', fontSize: font.sm, color: colors.textMuted }}>{r.notes || '-'}</td>
